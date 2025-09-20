@@ -1,0 +1,33 @@
+name: CI
+
+on:  
+  push:  
+    branches: [ main ]  
+  pull_request:  
+    branches: [ main ]
+
+jobs:  
+  build_and_test:  
+    runs-on: ubuntu-latest  
+    steps:  
+      - name: Checkout code  
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm  
+        uses: pnpm/action-setup@v2  
+        with:  
+          version: 8
+
+      - name: Install dependencies  
+        run: pnpm install
+
+      - name: Build all packages and applications  
+        run: pnpm -w -r build
+
+      - name: Run type checking  
+        run: pnpm -w -r tsc --noEmit
+
+      - name: Run tests  
+        run: pnpm -w -r test
+
+---

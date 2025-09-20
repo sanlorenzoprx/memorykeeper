@@ -1,0 +1,55 @@
+---
+description: Instructions on how to fetch data from the backend using TanStack Query and our API client.
+type: Agent Requested
+---
+
+# Frontend Data Fetching
+
+All server-state management and data fetching must be handled with TanStack Query (`useQuery` for reads, `useMutation` for writes).
+
+**Do not use `useEffect` with `fetch` directly.**
+
+Use the helper functions from our API client.
+
+### Example: Fetching a list of photos
+
+```tsx
+import { useQuery } from '@tanstack/react-query';
+import { apiGet } from '@/lib/api';
+import { Photo } from '@memorykeeper/types';
+
+function PhotoGallery() {
+  const { data, isLoading, error } = useQuery<{ photos: Photo[] }>({
+    queryKey: ['photos'],
+    queryFn: () => apiGet('/api/photos'),
+  });
+
+  if (isLoading) return <p>Loading...</p>;
+  if (error) return <p>Error loading photos.</p>;
+
+  // ... render photos
+}
+```
+
+### Example: Updating a resource
+
+```tsx
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { apiPut } from '@/lib/api';
+
+function UpdateCaption({ photoId }) {
+  const queryClient = useQueryClient();
+
+  const mutation = useMutation({
+    mutationFn: (newCaption: string) => apiPut(`/api/photos/${photoId}/caption`, { caption: newCaption }),
+    onSuccess: () => {
+      // Invalidate and refetch the photos query to get fresh data
+      queryClient.invalidateQueries({ queryKey: ['photos'] });
+    },
+  });
+
+  // ... call mutation.mutate(caption)
+}
+```
+
+Reference File: @apps/web/lib/api.ts

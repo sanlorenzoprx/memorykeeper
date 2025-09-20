@@ -1,0 +1,30 @@
+---
+description: Best practices for interacting with the D1 database and handling R2 uploads.
+type: Agent Requested
+---
+
+# Backend: Database and Storage Patterns
+
+## D1 Database Interaction
+- **Access**: Always access the D1 database via the context binding: `c.env.DB`.
+- **Queries**: **Always** use prepared statements (`.prepare()`) and bind parameters (`.bind()`) to prevent SQL injection.
+- **Schema**: Remember that all table and column names must be `snake_case`. Refer to the schema file for the source of truth.
+
+```typescript
+// Correct way to query D1
+const { results } = await c.env.DB.prepare(
+  'SELECT id, r2_key FROM photos WHERE owner_id = ?'
+).bind(userId).all();
+```
+
+Reference Schema: @backend/src/db/schema.sql
+
+## R2 Upload Flow (Presigned URLs)
+This is a critical pattern. Do not proxy file uploads through the Worker.
+
+1. **Create an Endpoint for URL Generation**: The backend exposes an authenticated endpoint (e.g., /api/photos/uploads/image) that takes a filename.
+2. **Generate a Presigned URL**: Inside this endpoint, use `c.env.PHOTOS_BUCKET.createPresignedUrl()` to generate a short-lived PUT URL.
+3. **Return the URL to the Client**: Send the uploadUrl and the final object key back to the client.
+4. **Create a Completion Endpoint**: The backend needs another endpoint (e.g., POST /api/photos) that the client calls after the upload to R2 is successful. This endpoint creates the corresponding record in the D1 database using the key.
+
+Reference Implementation: @backend/src/routes/photos.ts

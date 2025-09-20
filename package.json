@@ -1,0 +1,21 @@
+{  
+  "name": "memorykeeper-monorepo",  
+  "private": true,  
+  "version": "1.0.0",  
+  "workspaces": [  
+    "apps/*",  
+    "packages/*",  
+    "backend"  
+  ],  
+  "scripts": {  
+    "dev:all": "concurrently \"pnpm --filter backend dev\" \"pnpm --filter apps/web dev\"",  
+    "install:all": "pnpm -w install",  
+    "build": "pnpm -w -r build",  
+    "test": "pnpm -w -r test"  
+  },  
+  "devDependencies": {  
+    "concurrently": "^8.2.2",  
+    "pnpm": "^8.6.0",  
+    "typescript": "^5.4.5"  
+  }  
+}

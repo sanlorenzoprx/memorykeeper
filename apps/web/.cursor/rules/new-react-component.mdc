@@ -1,0 +1,36 @@
+---
+description: A template for creating new, reusable React components in this project.
+type: Manual
+ruleName: new-react-component
+---
+
+# New React Component Template
+
+Use this template for all new React components. It follows our standard patterns:
+
+- TypeScript for props.
+- Functional component syntax.
+- `clsx` for conditional class names if needed.
+- Assumes usage of Tailwind CSS for styling.
+
+```tsx
+'use client';
+
+import React from 'react';
+import { clsx } from 'clsx';
+
+// Define the component's props with TypeScript
+interface NewComponentProps {
+  // Add your props here, e.g.:
+  // title: string;
+  // onClick: () => void;
+}
+
+export default function NewComponent({ /* props */ }: NewComponentProps) {
+  return (
+    <div className="p-4 border rounded-lg">
+      {/* Your component JSX here */}
+    </div>
+  );
+}
+```

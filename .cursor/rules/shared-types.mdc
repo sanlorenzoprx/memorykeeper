@@ -1,0 +1,27 @@
+---
+description: How to correctly use and define shared types between the frontend and backend.
+type: Auto Attached
+globs:
+  - "apps/web/**/*.ts*"
+  - "backend/src/**/*.ts"
+alwaysApply: false
+---
+
+# Shared Types Guidance
+
+To prevent type duplication and ensure consistency between the Next.js frontend and the Hono backend, all shared data structures **must** be defined in the `packages/types` workspace.
+
+### Example
+
+Instead of defining a `Photo` interface in both the frontend and backend, import it from the shared package:
+
+```typescript
+import { Photo } from '@memorykeeper/types';
+
+// Use the Photo type in your code
+export default function PhotoCard({ photo }: { photo: Photo }) {
+  // ...
+}
+```
+
+File to reference for existing types: @packages/types/index.ts

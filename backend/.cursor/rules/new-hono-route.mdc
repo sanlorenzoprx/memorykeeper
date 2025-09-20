@@ -1,0 +1,52 @@
+---
+description: Template for creating a new API route file using Hono.
+type: Manual
+ruleName: new-hono-route
+---
+
+# New Hono Route Template
+
+Use this template to create a new route file in `backend/src/routes/`. It includes standard setup for Hono, environment types, auth variables, and Zod validation.
+
+```typescript
+import { Hono } from 'hono';
+import { z } from 'zod';
+import { zValidator } from '@hono/zod-validator';
+import type { Env } from '../env'; // Your environment bindings
+
+// Define the context variables set by middleware (e.g., auth)
+type AppContext = {
+  Bindings: Env;
+  Variables: {
+    auth: {
+      userId: string;
+    }
+  }
+};
+
+const app = new Hono<AppContext>();
+
+// Example GET route
+app.get('/', async (c) => {
+  const { userId } = c.get('auth');
+  // ... your logic here
+  return c.json({ success: true, userId });
+});
+
+// Example POST route with Zod validation
+const postSchema = z.object({
+  name: z.string().min(3),
+});
+
+app.post('/', zValidator('json', postSchema), async (c) => {
+  const { userId } = c.get('auth');
+  const body = c.req.valid('json');
+
+  // ... logic to handle validated body
+  return c.json({ message: `Hello, ${body.name} from user ${userId}` });
+});
+
+export default app;
+```
+
+Reference: The main router is at @backend/src/index.ts. Authentication middleware is at @backend/src/middleware/auth.ts.

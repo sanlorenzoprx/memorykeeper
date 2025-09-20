@@ -1,0 +1,17 @@
+{
+  "name": "@memorykeeper/types",
+  "version": "1.0.0",
+  "description": "Shared TypeScript types for MemoryKeeper",
+  "main": "index.ts",
+  "types": "index.ts",
+  "scripts": {
+    "build": "tsc",
+    "lint": "eslint index.ts"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.5",
+    "eslint": "^8.57.0",
+    "@typescript-eslint/eslint-plugin": "^6.12.0",
+    "@typescript-eslint/parser": "^6.12.0"
+  }
+}
