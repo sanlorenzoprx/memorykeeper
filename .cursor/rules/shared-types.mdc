@@ -22,6 +22,3 @@ import { Photo } from '@memorykeeper/types';
 export default function PhotoCard({ photo }: { photo: Photo }) {
   // ...
 }
-```
-
-File to reference for existing types: @packages/types/index.ts

@@ -1,28 +1,26 @@
-name = "memorykeeper-backend"  
-compatibility_date = "2025-09-19"  
+name = "memorykeeper-backend"
+compatibility_date = "2025-09-19"
 main = "src/index.ts"
 
-# Bindings for D1, R2, and AI  
-[[d1_databases]]  
-binding = "DB"  
-database_name = "memorykeeper-db"  
+# Bindings for D1, R2, and AI
+[[d1_databases]]
+binding = "DB"
+database_name = "memorykeeper-db"
 database_id = "your-production-d1-id"
 
-[[r2_buckets]]  
-binding = "PHOTOS_BUCKET"  
+[[r2_buckets]]
+binding = "PHOTOS_BUCKET"
 bucket_name = "memorykeeper-photos"
 
-[[ai]]  
+[[ai]]
 binding = "AI"
 
-# Cron trigger for surprise enhancements or other scheduled jobs  
-[[triggers]]  
-crons = ["0 9 * * *"] # Runs at 9 AM UTC every day
+# Cron trigger for processing background jobs
+[[triggers]]
+crons = ["* * * * *"] # Runs every minute to process jobs quickly in dev. Change for prod.
 
-[vars]  
-# Production environment variables  
-# These should be set via `wrangler secret put` for security  
-# CLERK_JWKS_URI = "..."  
+[vars]
+# Production environment variables
+# These should be set via `wrangler secret put` for security
+# CLERK_JWKS_URI = "..."
 # CLERK_ISSUER = "..."
-
----
