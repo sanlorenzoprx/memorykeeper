@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
 import { ClerkProvider } from '@clerk/nextjs';
 import { ThemeProvider } from 'next-themes';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import QueryProvider from '@/components/QueryProvider'; // Import the new provider
 import './styles/globals.css';
 import React from 'react';
 import Header from '@/components/Header';
@@ -14,9 +14,7 @@ export const metadata: Metadata = {
   description: 'Your voice-enabled photo memory vault.',
 };
 
-const queryClient = new QueryClient();
-
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: {
   children: React.ReactNode;
@@ -26,14 +24,14 @@ export default function RootLayout({
       <html lang="en" suppressHydrationWarning>
         <body className={inter.className}>
           <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
-            <QueryClientProvider client={queryClient}>
+            <QueryProvider> {/* Use the new client component provider */}
               <div className="flex flex-col min-h-screen">
                 <Header />
                 <main className="flex-grow container mx-auto p-4">
                   {children}
                 </main>
               </div>
-            </QueryClientProvider>
+            </QueryProvider>
           </ThemeProvider>
         </body>
       </html>

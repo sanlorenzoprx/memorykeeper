@@ -1,6 +1,6 @@
 name = "memorykeeper-backend"
-compatibility_date = "2025-09-19"
-main = "src/index.ts"
+compatibility_date = "2025-06-17"
+main = "backend/src/index.ts"
 
 # Bindings for D1, R2, and AI
 [[d1_databases]]
@@ -12,11 +12,11 @@ database_id = "your-production-d1-id"
 binding = "PHOTOS_BUCKET"
 bucket_name = "memorykeeper-photos"
 
-[[ai]]
+[ai]
 binding = "AI"
 
 # Cron trigger for processing background jobs
-[[triggers]]
+[triggers]
 crons = ["* * * * *"] # Runs every minute to process jobs quickly in dev. Change for prod.
 
 [vars]

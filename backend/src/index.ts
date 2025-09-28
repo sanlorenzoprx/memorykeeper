@@ -13,9 +13,17 @@ const app = new Hono<{ Bindings: Env }>();
 
 // Apply CORS middleware to all routes
 app.use('*', cors({
-  origin: ['http://localhost:3000', 'https://your-production-frontend.com'],
+  origin: ['http://localhost:3000', 'http://localhost:3002', 'https://your-production-frontend.com'],
   credentials: true,
 }));
+
+app.get('/', (c) => {
+  return c.json({
+    message: 'Welcome to the MemoryKeeper API!',
+    version: '1.0.0',
+    status: 'ok',
+  });
+});
 
 // Public share route - does not require authentication
 app.route('/share', share);
