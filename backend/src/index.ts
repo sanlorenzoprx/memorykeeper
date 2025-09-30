@@ -1,3 +1,6 @@
+// Note: Cloudflare Workers runtime doesn't support browser APIs like XMLHttpRequest and DOMParser
+// Use fetch() for HTTP requests and native APIs for other functionality
+
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { authMiddleware } from './middleware/auth';
@@ -13,8 +16,15 @@ const app = new Hono<{ Bindings: Env }>();
 
 // Apply CORS middleware to all routes
 app.use('*', cors({
-  origin: ['http://localhost:3000', 'http://localhost:3002', 'https://your-production-frontend.com'],
+  origin: (origin) => {
+    if (origin.startsWith('http://localhost:')) {
+      return origin;
+    }
+    return origin;
+  },
   credentials: true,
+  allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowHeaders: ['Content-Type', 'Authorization'],
 }));
 
 app.get('/', (c) => {

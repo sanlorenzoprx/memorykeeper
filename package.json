@@ -3,15 +3,19 @@
   "private": true,
   "version": "1.0.0",
   "scripts": {
-    "dev:all": "concurrently \"pnpm --filter backend dev\" \"pnpm --filter memorykeeper-web dev\"",
-    "install:all": "pnpm -w install",
-    "build": "pnpm -w -r build",
-    "test": "pnpm -w -r test"
+    "dev": "pnpm --parallel --stream dev",
+    "db:apply-schema": "wrangler d1 execute memorykeeper-db --local --file=./backend/src/db/schema.sql",
+    "build": "pnpm --filter \"./**\" build",
+    "lint": "pnpm --filter \"./**\" lint"
   },
   "devDependencies": {
     "concurrently": "^8.2.2",
     "pnpm": "^8.6.0",
     "typescript": "^5.4.5",
     "wrangler": "^4.40.2"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.896.0",
+    "@aws-sdk/s3-request-presigner": "^3.896.0"
   }
 }

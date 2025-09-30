@@ -1,3 +1,19 @@
+name = "memorykeeper-backend"
+main = "src/index.ts"
+compatibility_date = "2024-12-01"
+
 [vars]
-CLERK_SECRET_KEY = "your-clerk-secret-key"
-AUTH_SECRET = "your-auth-secret"
+CLERK_SECRET_KEY = "dev-clerk-secret"
+AUTH_SECRET = "dev-auth-secret"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "memorykeeper-db"
+database_id = "dev-database-id"
+
+[[r2_buckets]]
+binding = "PHOTOS_BUCKET"
+bucket_name = "memorykeeper-photos"
+
+[ai]
+binding = "AI"

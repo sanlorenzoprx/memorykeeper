@@ -6,67 +6,224 @@ import { scheduleR2Delete } from '../utils/jobs';
 
 const app = new Hono<{ Bindings: Env; Variables: { auth: { userId: string } } }>();
 
-// GET /api/photos - List photos for the current user
+// Helper function to generate presigned URL for R2
+const generatePresignedUrl = async (env: Env, key: string): Promise<string> => {
+    try {
+        const accountId = env.CLOUDFLARE_ACCOUNT_ID;
+        const accessKeyId = env.R2_ACCESS_KEY_ID;
+
+        // Check if we have real credentials or just placeholders
+        console.log('Account ID:', accountId);
+        console.log('Access Key ID:', accessKeyId);
+        if (accountId === 'your_account_id_here' || accessKeyId === 'your_r2_access_key_id') {
+            console.warn('Using placeholder credentials - returning mock URL for local development');
+            console.warn('For production, set up real R2 credentials in .dev.vars or use wrangler secret put');
+
+            // Return a mock URL that indicates development mode
+            // Frontend should handle this case gracefully
+            return `dev-mode://mock-upload-url/${key}`;
+        }
+
+        if (!accountId) {
+            throw new Error('CLOUDFLARE_ACCOUNT_ID environment variable is required');
+        }
+
+        // Create a simple presigned URL for R2
+        // R2 supports S3-compatible presigned URLs
+        const bucketName = 'memorykeeper-photos';
+        const credential = `${accessKeyId}/${new Date().toISOString().split('T')[0]}/auto/s3/aws4_request`;
+
+        const params = new URLSearchParams({
+            'X-Amz-Algorithm': 'AWS4-HMAC-SHA256',
+            'X-Amz-Credential': credential,
+            'X-Amz-Date': new Date().toISOString().replace(/[:-]/g, '').split('.')[0] + 'Z',
+            'X-Amz-Expires': '3600',
+            'X-Amz-SignedHeaders': 'host',
+        });
+
+        const url = `https://${accountId}.r2.cloudflarestorage.com/${bucketName}/${key}?${params.toString()}`;
+
+        console.log('Generated presigned URL for key:', key);
+        return url;
+    } catch (error) {
+        console.error('Failed to generate presigned URL:', error);
+        throw new Error(`Failed to generate presigned URL: ${error.message}`);
+    }
+};
+
+// GET /api/photos - List photos for the current user with search and filtering
 app.get('/', async (c) => {
   const { userId } = c.get('auth');
-  const { limit = 30, offset = 0, albumId } = c.req.query();
+  const {
+    limit = 30,
+    offset = 0,
+    albumId,
+    search,
+    tags,
+    sort = 'newest',
+    dateFrom,
+    dateTo
+  } = c.req.query();
+
+  // Build WHERE conditions
+  let whereConditions = ['p.owner_id = ?'];
+  let bindParams: any[] = [userId];
+
+  // Album filter
+  if (albumId) {
+    whereConditions.push('ap.album_id = ?');
+    bindParams.push(albumId);
+  }
+
+  // Search filter (searches in transcription_text and alt_text)
+  if (search) {
+    whereConditions.push('(p.transcription_text LIKE ? OR p.alt_text LIKE ?)');
+    bindParams.push(`%${search}%`, `%${search}%`);
+  }
+
+  // Tag filter
+  if (tags) {
+    const tagList = Array.isArray(tags) ? tags : [tags];
+    const tagConditions = tagList.map(() => 't.name = ?').join(' OR ');
+    whereConditions.push(`(${tagConditions})`);
+    bindParams.push(...tagList);
+  }
+
+  // Date range filter
+  if (dateFrom) {
+    whereConditions.push('p.created_at >= ?');
+    bindParams.push(dateFrom);
+  }
+  if (dateTo) {
+    whereConditions.push('p.created_at <= ?');
+    bindParams.push(dateTo);
+  }
+
+  // Sort options
+  let orderBy = 'p.created_at DESC';
+  switch (sort) {
+    case 'oldest':
+      orderBy = 'p.created_at ASC';
+      break;
+    case 'name':
+      orderBy = 'p.alt_text ASC, p.created_at DESC';
+      break;
+    case 'newest':
+    default:
+      orderBy = 'p.created_at DESC';
+      break;
+  }
+
+  const whereClause = whereConditions.join(' AND ');
 
   let query: D1PreparedStatement;
   if (albumId) {
-    query = c.env.DB.prepare(
-      `SELECT p.id, p.r2_key, p.alt_text, p.transcription_text, p.created_at, GROUP_CONCAT(t.name) as tags
-       FROM photos p
-       JOIN album_photos ap ON p.id = ap.photo_id
-       LEFT JOIN photo_tags pt ON p.id = pt.photo_id
-       LEFT JOIN tags t ON pt.tag_id = t.id
-       WHERE p.owner_id = ? AND ap.album_id = ?
-       GROUP BY p.id
-       ORDER BY p.created_at DESC LIMIT ? OFFSET ?`
-    ).bind(userId, albumId, Number(limit), Number(offset));
+    // For album photos, we need a more complex query
+    query = c.env.DB.prepare(`
+      SELECT p.id, p.r2_key, p.alt_text, p.transcription_text, p.created_at, GROUP_CONCAT(t.name) as tags
+      FROM photos p
+      JOIN album_photos ap ON p.id = ap.photo_id
+      LEFT JOIN photo_tags pt ON p.id = pt.photo_id
+      LEFT JOIN tags t ON pt.tag_id = t.id
+      WHERE ${whereClause}
+      GROUP BY p.id
+      ORDER BY ${orderBy} LIMIT ? OFFSET ?`
+    ).bind(...bindParams, Number(limit), Number(offset));
   } else {
-    query = c.env.DB.prepare(
-      `SELECT p.id, p.r2_key, p.alt_text, p.transcription_text, p.created_at, GROUP_CONCAT(t.name) as tags
-       FROM photos p
-       LEFT JOIN photo_tags pt ON p.id = pt.photo_id
-       LEFT JOIN tags t ON pt.tag_id = t.id
-       WHERE p.owner_id = ?
-       GROUP BY p.id
-       ORDER BY p.created_at DESC LIMIT ? OFFSET ?`
-    ).bind(userId, Number(limit), Number(offset));
+    query = c.env.DB.prepare(`
+      SELECT p.id, p.r2_key, p.alt_text, p.transcription_text, p.created_at, GROUP_CONCAT(t.name) as tags
+      FROM photos p
+      LEFT JOIN photo_tags pt ON p.id = pt.photo_id
+      LEFT JOIN tags t ON pt.tag_id = t.id
+      WHERE ${whereClause}
+      GROUP BY p.id
+      ORDER BY ${orderBy} LIMIT ? OFFSET ?`
+    ).bind(...bindParams, Number(limit), Number(offset));
   }
 
   const { results } = await query.all();
   const photos = (results || []).map(p => ({ ...p, tags: p.tags ? (p.tags as string).split(',') : [] }));
 
-  return c.json({ photos });
+  // Get total count for pagination
+  let countQuery: D1PreparedStatement;
+  if (albumId) {
+    countQuery = c.env.DB.prepare(`
+      SELECT COUNT(DISTINCT p.id) as total
+      FROM photos p
+      JOIN album_photos ap ON p.id = ap.photo_id
+      LEFT JOIN photo_tags pt ON p.id = pt.photo_id
+      LEFT JOIN tags t ON pt.tag_id = t.id
+      WHERE ${whereClause}`
+    ).bind(...bindParams);
+  } else {
+    countQuery = c.env.DB.prepare(`
+      SELECT COUNT(*) as total
+      FROM photos p
+      LEFT JOIN photo_tags pt ON p.id = pt.photo_id
+      LEFT JOIN tags t ON pt.tag_id = t.id
+      WHERE ${whereClause}`
+    ).bind(...bindParams);
+  }
+
+  const { results: countResults } = await countQuery.all();
+  const total = countResults[0]?.total || 0;
+
+  return c.json({
+    photos,
+    pagination: {
+      total,
+      limit: Number(limit),
+      offset: Number(offset),
+      hasMore: (Number(offset) + Number(limit)) < total
+    },
+    filters: {
+      search,
+      tags: tags ? (Array.isArray(tags) ? tags : [tags]) : [],
+      sort,
+      dateFrom,
+      dateTo
+    }
+  });
 });
 
 // POST /api/photos/uploads/image - Request a presigned URL for image upload
 app.post('/uploads/image', zValidator('json', z.object({ filename: z.string() })), async (c) => {
-    const { userId } = c.get('auth');
-    const { filename } = c.req.valid('json');
-    const key = `photos/${userId}/${Date.now()}-${filename}`;
+    try {
+        console.log("Step 1: Attempting to generate presigned URL...");
+        const { userId } = c.get('auth');
+        const { filename } = c.req.valid('json');
+        const key = `photos/${userId}/${Date.now()}-${filename}`;
+        console.log(`  - User: ${userId}, Filename: ${filename}, Key: ${key}`);
 
-    const signedUrl = await c.env.PHOTOS_BUCKET.createPresignedUrl({
-        key,
-        action: 'put',
-        expiration: 3600, // Expires in 1 hour
-    });
-
-    return c.json({ uploadUrl: signedUrl, key });
+        const signedUrl = await generatePresignedUrl(c.env, key);
+        
+        console.log("Step 1 SUCCESS: Presigned URL generated.");
+        return c.json({ uploadUrl: signedUrl, key });
+    } catch (e) {
+        console.error("Step 1 FAILED: Error generating presigned URL.", e);
+        return c.json({ error: 'Failed to generate upload URL' }, 500);
+    }
 });
 
 // POST /api/photos - Create a photo record in the DB after successful upload
 app.post('/', zValidator('json', z.object({ r2Key: z.string() })), async (c) => {
-  const { userId } = c.get('auth');
-  const { r2Key } = c.req.valid('json');
-  const id = crypto.randomUUID();
+    try {
+        console.log("Step 2: Attempting to create photo DB record...");
+        const { userId } = c.get('auth');
+        const { r2Key } = c.req.valid('json');
+        const id = crypto.randomUUID();
+        console.log(`  - User: ${userId}, R2 Key: ${r2Key}`);
 
-  await c.env.DB.prepare(
-    'INSERT INTO photos (id, owner_id, r2_key, created_at) VALUES (?, ?, ?, ?)'
-  ).bind(id, userId, r2Key, new Date().toISOString()).run();
+        await c.env.DB.prepare(
+            'INSERT INTO photos (id, owner_id, r2_key, created_at) VALUES (?, ?, ?, ?)'
+        ).bind(id, userId, r2Key, new Date().toISOString()).run();
 
-  return c.json({ id, message: 'Photo record created successfully' });
+        console.log("Step 2 SUCCESS: Photo DB record created.");
+        return c.json({ id, message: 'Photo record created successfully' });
+    } catch (e) {
+        console.error("Step 2 FAILED: Error creating photo DB record.", e);
+        return c.json({ error: 'Failed to create photo record' }, 500);
+    }
 });
 
 // PUT /api/photos/:photoId/caption - Update photo caption

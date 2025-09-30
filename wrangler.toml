@@ -1,12 +1,13 @@
 name = "memorykeeper-backend"
-compatibility_date = "2025-06-17"
+compatibility_date = "2024-12-01"
 main = "backend/src/index.ts"
+compatibility_flags = ["nodejs_compat"]
 
 # Bindings for D1, R2, and AI
 [[d1_databases]]
 binding = "DB"
 database_name = "memorykeeper-db"
-database_id = "your-production-d1-id"
+database_id = "77124aa9-fff7-4b3a-883e-bd909645e6c9"
 
 [[r2_buckets]]
 binding = "PHOTOS_BUCKET"
@@ -22,5 +23,5 @@ crons = ["* * * * *"] # Runs every minute to process jobs quickly in dev. Change
 [vars]
 # Production environment variables
 # These should be set via `wrangler secret put` for security
-# CLERK_JWKS_URI = "..."
-# CLERK_ISSUER = "..."
+# CLERK_JWKS_URI = "https://vast-osprey-17.clerk.accounts.dev/.well-known/jwks.json"
+# CLERK_ISSUER = "https://vast-osprey-17.clerk.accounts.dev"

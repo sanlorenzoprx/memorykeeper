@@ -100,6 +100,7 @@ CREATE TABLE shares (
   target_id TEXT NOT NULL,
   share_token TEXT UNIQUE NOT NULL,
   created_at TEXT NOT NULL,
+  view_count INTEGER DEFAULT 0,
   FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE CASCADE
 );
 

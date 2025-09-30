@@ -12,7 +12,7 @@ interface AlbumFormValues {
 }
 
 interface AlbumFormProps {
-  initialValues: AlbumFormValues;
+  initialValues?: AlbumFormValues;
   onSubmit: (values: AlbumFormValues) => void;
   onCancel: () => void;
 }
