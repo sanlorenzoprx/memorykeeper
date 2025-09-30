@@ -5,7 +5,12 @@
   "scripts": {
     "dev": "cd .. && wrangler dev",
     "deploy": "wrangler deploy",
-    "test": "vitest"
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "test:integration": "vitest run tests/integration",
+    "test:db": "vitest run tests/db",
+    "db:migrate": "wrangler d1 execute memorykeeper-db --local --file=./src/db/migrations/002_update_transcription_limits.sql"
   },
   "dependencies": {
     "@hono/zod-validator": "^0.2.1",

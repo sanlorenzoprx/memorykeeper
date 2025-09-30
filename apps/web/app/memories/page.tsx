@@ -6,7 +6,7 @@ import { useAuth } from '@clerk/nextjs';
 import PhotoCard from '@/components/PhotoCard';
 import SearchFilters from '@/components/SearchFilters';
 import { Button } from '@/components/ui/button';
-import { Plus, Grid, List } from 'lucide-react';
+import { Plus, Grid, List, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useI18n } from '@/contexts/I18nProvider';
 
 export default function MemoriesPage() {
@@ -22,8 +22,17 @@ export default function MemoriesPage() {
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [availableTags, setAvailableTags] = useState<string[]>([]);
 
+  // Pagination states
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize] = useState(20); // Photos per page
+  const [totalPhotos, setTotalPhotos] = useState(0);
+  const [hasMore, setHasMore] = useState(true);
+
   // Build query parameters
   const queryParams = new URLSearchParams();
+  queryParams.append('limit', pageSize.toString());
+  queryParams.append('offset', ((currentPage - 1) * pageSize).toString());
+
   if (searchQuery) queryParams.append('search', searchQuery);
   if (selectedTags.length > 0) {
     selectedTags.forEach(tag => queryParams.append('tags', tag));
@@ -33,7 +42,7 @@ export default function MemoriesPage() {
   if (dateTo) queryParams.append('dateTo', dateTo.toISOString());
 
   const { data: photosData, isLoading, error, refetch } = useQuery({
-    queryKey: ['photos', searchQuery, selectedTags, sortBy, dateFrom, dateTo],
+    queryKey: ['photos', searchQuery, selectedTags, sortBy, dateFrom, dateTo, currentPage, pageSize],
     queryFn: async () => {
       const token = await getToken();
       const queryString = queryParams.toString();
@@ -49,14 +58,41 @@ export default function MemoriesPage() {
         setAvailableTags(allTags);
       }
 
+      // Update pagination info
+      if (response.pagination) {
+        setTotalPhotos(response.pagination.total);
+        setHasMore(response.pagination.hasMore);
+      }
+
       return response;
     },
   });
 
   const photos = photosData?.photos || [];
+  const totalPages = Math.ceil(totalPhotos / pageSize);
 
   const handleClearFilters = () => {
+    setCurrentPage(1);
+    setTotalPhotos(0);
+    setHasMore(true);
     refetch();
+  };
+
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleNextPage = () => {
+    if (hasMore) {
+      handlePageChange(currentPage + 1);
+    }
+  };
+
+  const handlePrevPage = () => {
+    if (currentPage > 1) {
+      handlePageChange(currentPage - 1);
+    }
   };
 
   if (isLoading) {
@@ -171,6 +207,59 @@ export default function MemoriesPage() {
               viewMode={viewMode}
             />
           ))}
+        </div>
+      )}
+
+      {/* Pagination Controls */}
+      {photos.length > 0 && totalPages > 1 && (
+        <div className="flex items-center justify-between mt-8 px-4">
+          <div className="text-sm text-muted-foreground">
+            Showing {((currentPage - 1) * pageSize) + 1} to {Math.min(currentPage * pageSize, totalPhotos)} of {totalPhotos} memories
+          </div>
+
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handlePrevPage}
+              disabled={currentPage <= 1}
+              aria-label="Previous page"
+            >
+              <ChevronLeft className="h-4 w-4" />
+              Previous
+            </Button>
+
+            <div className="flex items-center gap-1">
+              {/* Page numbers */}
+              {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                const pageNumber = Math.max(1, Math.min(totalPages - 4, currentPage - 2)) + i;
+                if (pageNumber > totalPages) return null;
+
+                return (
+                  <Button
+                    key={pageNumber}
+                    variant={currentPage === pageNumber ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => handlePageChange(pageNumber)}
+                    className="min-w-[2.5rem]"
+                  >
+                    {pageNumber}
+                  </Button>
+                );
+              })}
+            </div>
+
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleNextPage}
+              disabled={!hasMore}
+              aria-label="Next page"
+            >
+              Next
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
       )}
     </div>

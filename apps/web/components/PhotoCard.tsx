@@ -100,6 +100,7 @@ export default function PhotoCard({ photo, viewMode = 'grid' }: PhotoCardProps) 
       }`}
       role="article"
       aria-label={`Memory: ${photo.transcription_text || photo.alt_text || 'Untitled memory'}`}
+      aria-describedby={`photo-${photo.id}-description`}
     >
       <div className={`relative ${
         viewMode === 'list'
@@ -116,6 +117,13 @@ export default function PhotoCard({ photo, viewMode = 'grid' }: PhotoCardProps) 
           loading="lazy"
           quality={75}
         />
+      </div>
+
+      {/* Hidden description for screen readers */}
+      <div id={`photo-${photo.id}-description`} className="sr-only">
+        Photo uploaded on {new Date(photo.created_at || '').toLocaleDateString()}.
+        {photo.transcription_text && ` Voice caption: ${photo.transcription_text}`}
+        {photo.tags && photo.tags.length > 0 && ` Tags: ${photo.tags.join(', ')}`}
       </div>
       <div className={`p-4 ${viewMode === 'list' ? 'flex-1 min-w-0' : ''}`}>
         {isEditing ? (
@@ -150,6 +158,14 @@ export default function PhotoCard({ photo, viewMode = 'grid' }: PhotoCardProps) 
                           } else {
                             audioRef.current.play().catch(error => {
                               console.error('Audio playback failed:', error);
+                              // Announce error to screen readers
+                              const announcement = document.createElement('div');
+                              announcement.setAttribute('aria-live', 'polite');
+                              announcement.setAttribute('aria-atomic', 'true');
+                              announcement.className = 'sr-only';
+                              announcement.textContent = 'Audio playback failed. Please try again.';
+                              document.body.appendChild(announcement);
+                              setTimeout(() => document.body.removeChild(announcement), 1000);
                             });
                             setIsPlaying(true);
                           }
@@ -158,10 +174,14 @@ export default function PhotoCard({ photo, viewMode = 'grid' }: PhotoCardProps) 
                       className="shrink-0"
                       aria-label={isPlaying ? 'Pause voice recording' : 'Play voice recording'}
                       aria-pressed={isPlaying}
+                      aria-describedby={`audio-${photo.id}-help`}
                     >
                       {isPlaying ? <Pause className="h-4 w-4" aria-hidden="true" /> : <Play className="h-4 w-4" aria-hidden="true" />}
                     </Button>
                   )}
+                  <div id={`audio-${photo.id}-help`} className="sr-only">
+                    Use this button to play or pause the voice recording for this photo
+                  </div>
                   <div className="flex-1">
             <p className="text-sm text-muted-foreground min-h-[40px]">
                       {photo.transcription_text}
@@ -331,6 +351,6 @@ export default function PhotoCard({ photo, viewMode = 'grid' }: PhotoCardProps) 
           Delete Photo
         </Button>
       </div>
-    </div>
+    </article>
   );
 }

@@ -4,6 +4,7 @@ import { ClerkProvider } from '@clerk/nextjs';
 import { ThemeProvider } from 'next-themes';
 import QueryProvider from '@/components/QueryProvider';
 import { I18nProvider } from '@/contexts/I18nProvider';
+import { ToastProvider } from '@/components/ui/toast';
 import './styles/globals.css';
 import React from 'react';
 import Header from '@/components/Header';
@@ -26,14 +27,16 @@ export default async function RootLayout({
         <body className={inter.className}>
           <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
             <QueryProvider>
-              <I18nProvider initialLanguage="auto">
-                <div className="flex flex-col min-h-screen">
-                  <Header />
-                  <main className="flex-grow">
-                    {children}
-                  </main>
-                </div>
-              </I18nProvider>
+              <ToastProvider>
+                <I18nProvider initialLanguage="auto">
+                  <div className="flex flex-col min-h-screen">
+                    <Header />
+                    <main className="flex-grow">
+                      {children}
+                    </main>
+                  </div>
+                </I18nProvider>
+              </ToastProvider>
             </QueryProvider>
           </ThemeProvider>
         </body>

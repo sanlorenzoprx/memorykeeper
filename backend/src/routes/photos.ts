@@ -117,53 +117,36 @@ app.get('/', async (c) => {
   const whereClause = whereConditions.join(' AND ');
 
   let query: D1PreparedStatement;
-  if (albumId) {
-    // For album photos, we need a more complex query
-    query = c.env.DB.prepare(`
-      SELECT p.id, p.r2_key, p.alt_text, p.transcription_text, p.created_at, GROUP_CONCAT(t.name) as tags
-      FROM photos p
-      JOIN album_photos ap ON p.id = ap.photo_id
-      LEFT JOIN photo_tags pt ON p.id = pt.photo_id
-      LEFT JOIN tags t ON pt.tag_id = t.id
-      WHERE ${whereClause}
-      GROUP BY p.id
-      ORDER BY ${orderBy} LIMIT ? OFFSET ?`
-    ).bind(...bindParams, Number(limit), Number(offset));
-  } else {
-    query = c.env.DB.prepare(`
-      SELECT p.id, p.r2_key, p.alt_text, p.transcription_text, p.created_at, GROUP_CONCAT(t.name) as tags
-      FROM photos p
-      LEFT JOIN photo_tags pt ON p.id = pt.photo_id
-      LEFT JOIN tags t ON pt.tag_id = t.id
-      WHERE ${whereClause}
-      GROUP BY p.id
-      ORDER BY ${orderBy} LIMIT ? OFFSET ?`
-    ).bind(...bindParams, Number(limit), Number(offset));
-  }
+  // Optimized query using subqueries for better performance
+  const baseQuery = `
+    SELECT p.id, p.r2_key, p.alt_text, p.transcription_text, p.created_at,
+           (SELECT GROUP_CONCAT(t.name) FROM photo_tags pt2 JOIN tags t ON pt2.tag_id = t.id WHERE pt2.photo_id = p.id) as tags
+    FROM photos p`;
+
+  const joins = albumId
+    ? `${baseQuery}
+       JOIN album_photos ap ON p.id = ap.photo_id`
+    : baseQuery;
+
+  query = c.env.DB.prepare(`
+    ${joins}
+    WHERE ${whereClause}
+    ORDER BY ${orderBy}
+    LIMIT ? OFFSET ?`
+  ).bind(...bindParams, Number(limit), Number(offset));
 
   const { results } = await query.all();
   const photos = (results || []).map(p => ({ ...p, tags: p.tags ? (p.tags as string).split(',') : [] }));
 
-  // Get total count for pagination
-  let countQuery: D1PreparedStatement;
-  if (albumId) {
-    countQuery = c.env.DB.prepare(`
-      SELECT COUNT(DISTINCT p.id) as total
-      FROM photos p
-      JOIN album_photos ap ON p.id = ap.photo_id
-      LEFT JOIN photo_tags pt ON p.id = pt.photo_id
-      LEFT JOIN tags t ON pt.tag_id = t.id
-      WHERE ${whereClause}`
-    ).bind(...bindParams);
-  } else {
-    countQuery = c.env.DB.prepare(`
-      SELECT COUNT(*) as total
-      FROM photos p
-      LEFT JOIN photo_tags pt ON p.id = pt.photo_id
-      LEFT JOIN tags t ON pt.tag_id = t.id
-      WHERE ${whereClause}`
-    ).bind(...bindParams);
-  }
+  // Optimized count query
+  const countJoins = albumId
+    ? `FROM photos p JOIN album_photos ap ON p.id = ap.photo_id`
+    : `FROM photos p`;
+
+  const countQuery = c.env.DB.prepare(`
+    SELECT COUNT(*) as total ${countJoins}
+    WHERE ${whereClause}`
+  ).bind(...bindParams);
 
   const { results: countResults } = await countQuery.all();
   const total = countResults[0]?.total || 0;
@@ -244,12 +227,51 @@ app.put('/:photoId/caption', zValidator('json', z.object({ caption: z.string() }
 
 // POST /api/photos/:photoId/transcribe - Trigger transcription for an uploaded audio file
 app.post('/:photoId/transcribe', zValidator('json', z.object({ r2Key: z.string() })), async (c) => {
+    const { userId } = c.get('auth');
     const photoId = c.req.param('photoId');
     const { r2Key } = c.req.valid('json');
-    // In a real app, this would be enqueued. For now, direct call.
-    // This assumes `transcribeAudioAndUpdatePhoto` is in `ai.ts`
-    // await transcribeAudioAndUpdatePhoto(c.env, r2Key, photoId);
-    return c.json({ message: 'Transcription process started' });
+
+    try {
+      console.log(`Starting transcription request for photo ${photoId} by user ${userId}`);
+
+      // Verify the photo belongs to the user
+      const photo = await c.env.DB.prepare(
+        'SELECT id FROM photos WHERE id = ? AND owner_id = ?'
+      ).bind(photoId, userId).first();
+
+      if (!photo) {
+        return c.json({ error: 'Photo not found or access denied' }, 404);
+      }
+
+      // Import and call the transcription function
+      const { transcribeAudioAndUpdatePhoto } = await import('../services/ai');
+      const transcription = await transcribeAudioAndUpdatePhoto(c.env, r2Key, photoId, userId);
+
+      return c.json({
+        success: true,
+        transcription,
+        message: 'Transcription completed successfully'
+      });
+
+    } catch (error: any) {
+      console.error('Transcription failed:', error);
+
+      // Handle rate limit exceeded
+      if (error.upgradeRequired) {
+        return c.json({
+          error: 'Transcription limit exceeded',
+          message: error.message,
+          upgradeRequired: true,
+          usage: error.usage
+        }, 402);
+      }
+
+      // Handle other errors
+      return c.json({
+        error: 'Transcription failed',
+        message: error.message || 'An error occurred during transcription'
+      }, 500);
+    }
 });
 
 // DELETE /api/photos/:photoId - Delete a photo

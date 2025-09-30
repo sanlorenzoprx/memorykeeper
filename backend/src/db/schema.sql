@@ -112,6 +112,34 @@ CREATE TABLE jobs (
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
+-- User subscription plans and usage tracking
+CREATE TABLE user_plans (
+  user_id TEXT PRIMARY KEY,
+  plan_type TEXT NOT NULL DEFAULT 'free', -- 'free', 'premium_monthly', 'premium_yearly'
+  transcription_seconds_used INTEGER DEFAULT 0,
+  transcription_seconds_limit INTEGER DEFAULT 900, -- 15 minutes (900 seconds) for free users
+  transcription_reset_date TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  plan_expires_at TEXT, -- NULL for free, date for paid plans
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+-- Transcription usage tracking for analytics and gamification
+CREATE TABLE transcription_usage (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id TEXT NOT NULL,
+  photo_id TEXT NOT NULL,
+  audio_duration_seconds INTEGER NOT NULL,
+  transcription_length INTEGER, -- Length of transcription text
+  processing_time_ms INTEGER, -- How long transcription took
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  FOREIGN KEY (photo_id) REFERENCES photos(id) ON DELETE CASCADE
+);
+
+-- Note: Removed transcription-specific achievements to focus on timer-based motivation
+
 -- Seed initial achievements
 INSERT INTO achievements (id, name, description) VALUES
 ('FIRST_UPLOAD', 'First Upload', 'You uploaded your first photo!'),

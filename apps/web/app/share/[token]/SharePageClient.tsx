@@ -85,19 +85,24 @@ export default function SharePageClient({ token }: { token: string }) {
 
   const shareToSocial = (platform: string) => {
     const url = window.location.href;
-    const text = data?.data.transcription_text || 'Check out this memory!';
+    const transcription = data?.data.transcription_text || '';
+
+    // Create engaging share text that emphasizes the voice aspect
+    const shareText = transcription
+      ? `🎤 Listen to this voice memory: "${transcription.substring(0, 80)}${transcription.length > 80 ? '...' : ''}"`
+      : '🎤 Check out this voice memory!';
 
     let shareUrl = '';
     switch (platform) {
       case 'twitter':
-        shareUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(url)}`;
+        shareUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}&url=${encodeURIComponent(url)}`;
         break;
       case 'facebook':
         shareUrl = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}`;
         break;
       case 'copy':
         navigator.clipboard.writeText(url);
-        alert('Link copied to clipboard!');
+        alert('🎤 Voice memory link copied to clipboard!');
         return;
     }
 
@@ -106,10 +111,16 @@ export default function SharePageClient({ token }: { token: string }) {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-lg text-gray-600">Loading shared memory...</p>
+          <div className="relative mb-6">
+            <div className="animate-spin rounded-full h-16 w-16 border-4 border-blue-200 border-t-blue-600 mx-auto"></div>
+            <div className="absolute inset-0 flex items-center justify-center">
+              <Volume2 className="h-6 w-6 text-blue-600 animate-pulse" />
+            </div>
+          </div>
+          <p className="text-xl text-gray-700 font-medium">Loading voice memory...</p>
+          <p className="text-gray-500 mt-2">Preparing your shared moment</p>
         </div>
       </div>
     );
@@ -117,16 +128,24 @@ export default function SharePageClient({ token }: { token: string }) {
 
   if (error || !data) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-red-50 to-pink-100 flex items-center justify-center">
-        <Card className="max-w-md mx-auto">
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center">
+        <Card className="max-w-lg mx-auto bg-white/90 backdrop-blur-sm border-0 shadow-xl">
           <CardContent className="text-center p-8">
-            <div className="w-16 h-16 mx-auto mb-4 bg-red-100 rounded-full flex items-center justify-center">
-              <MessageCircle className="h-8 w-8 text-red-600" />
+            <div className="w-20 h-20 mx-auto mb-6 bg-red-100 rounded-full flex items-center justify-center">
+              <Volume2 className="h-10 w-10 text-red-600" />
             </div>
-            <h2 className="text-xl font-semibold mb-2">Memory Not Found</h2>
-            <p className="text-gray-600">
-              {error || 'This shared memory could not be found or has expired.'}
+            <h2 className="text-2xl font-bold text-gray-900 mb-3">Voice Memory Not Found</h2>
+            <p className="text-gray-600 mb-6 leading-relaxed">
+              {error || 'This shared voice memory could not be found or has expired.'}
             </p>
+            <div className="space-y-3">
+              <p className="text-sm text-gray-500">
+                Share links are temporary to protect your privacy
+              </p>
+              <Button variant="outline" className="w-full">
+                Create Your Own Voice Memory
+              </Button>
+            </div>
           </CardContent>
         </Card>
       </div>
@@ -137,135 +156,162 @@ export default function SharePageClient({ token }: { token: string }) {
   const publicR2Domain = process.env.NEXT_PUBLIC_R2_PUBLIC_DOMAIN || 'your-domain';
   const imageUrl = `https://${publicR2Domain}/${photo.r2_key}`;
 
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50">
-      <div className="container mx-auto px-4 py-8 max-w-4xl">
-        {/* Header */}
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center gap-2 bg-white/80 backdrop-blur-sm px-4 py-2 rounded-full shadow-sm mb-4">
-            <Volume2 className="h-4 w-4 text-blue-600" />
-            <span className="text-sm font-medium text-gray-700">Shared Memory</span>
-          </div>
-          <h1 className="text-3xl md:text-4xl font-bold text-gray-900 mb-2">
-            A Cherished Memory
-          </h1>
-          <p className="text-gray-600 max-w-2xl mx-auto">
-            Discover this special moment preserved in time
-          </p>
-        </div>
+  // Create shortened transcription for display
+  const shortTranscription = photo.transcription_text && photo.transcription_text.length > 120
+    ? `${photo.transcription_text.substring(0, 117)}...`
+    : photo.transcription_text || '';
 
-        {/* Main Content */}
-        <Card className="overflow-hidden shadow-xl border-0 bg-white/90 backdrop-blur-sm">
-          <CardContent className="p-0">
-            {/* Photo */}
-            <div className="relative">
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
+      <div className="container mx-auto px-4 py-6 max-w-2xl">
+        {/* Hero Section - Image + Play Button + Short Text */}
+        <div className="mb-8">
+          {/* Large Image with Play Button Overlay */}
+          <div className="relative mb-6 group">
+            <div className="aspect-video w-full overflow-hidden rounded-2xl shadow-2xl">
               <Image
                 src={imageUrl}
-                alt={photo.alt_text || 'Shared memory'}
-                width={800}
-                height={600}
-                className="w-full h-auto object-cover"
+                alt={photo.alt_text || 'Voice memory'}
+                fill
+                className="object-cover"
                 priority
-                quality={85}
+                quality={90}
                 sizes="(max-width: 768px) 100vw, (max-width: 1200px) 800px, 1200px"
               />
 
-              {/* Audio Play Button Overlay */}
+              {/* Centered Play Button Overlay */}
               {photo.audio_r2_key && (
-                <div className="absolute bottom-4 right-4">
-                  <Button
-                    onClick={playAudio}
-                    size="lg"
-                    className="rounded-full w-14 h-14 shadow-lg bg-white/90 hover:bg-white text-blue-600 border-2 border-blue-200"
-                  >
-                    {isPlaying ? <Pause className="h-6 w-6" /> : <Play className="h-6 w-6" />}
-                  </Button>
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <div className="bg-black/20 backdrop-blur-sm rounded-full p-6 group-hover:bg-black/30 transition-all duration-300">
+                    <Button
+                      onClick={playAudio}
+                      size="lg"
+                      className="rounded-full w-20 h-20 bg-white/90 hover:bg-white text-blue-600 shadow-2xl hover:shadow-3xl transform hover:scale-105 transition-all duration-300 border-2 border-blue-200/50"
+                    >
+                      {isPlaying ? (
+                        <Pause className="h-8 w-8" />
+                      ) : (
+                        <Play className="h-8 w-8 ml-1" />
+                      )}
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {/* Voice indicator badge */}
+              {photo.audio_r2_key && (
+                <div className="absolute top-4 left-4 bg-blue-600 text-white px-3 py-1 rounded-full text-sm font-medium flex items-center gap-2">
+                  <Volume2 className="h-4 w-4" />
+                  Voice Memory
                 </div>
               )}
             </div>
+          </div>
 
-            {/* Content */}
-            <div className="p-8">
-              {/* Description */}
-              {photo.transcription_text && (
-                <div className="mb-8">
-                  <div className="flex items-start gap-3 mb-4">
-                    <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0">
-                      <Volume2 className="h-4 w-4 text-blue-600" />
-                    </div>
-                    <div className="flex-1">
-                      <h3 className="font-semibold text-gray-900 mb-2">Voice Description</h3>
-                      <p className="text-gray-700 leading-relaxed">{photo.transcription_text}</p>
-                    </div>
-                  </div>
-                </div>
-              )}
+          {/* Short Transcription */}
+          {shortTranscription && (
+            <div className="text-center px-4">
+              <blockquote className="text-xl md:text-2xl font-medium text-gray-800 leading-relaxed italic">
+                "{shortTranscription}"
+              </blockquote>
+              <div className="mt-4 flex items-center justify-center gap-2 text-blue-600">
+                <Volume2 className="h-5 w-5" />
+                <span className="text-sm font-medium">Click play to hear the full story</span>
+              </div>
+            </div>
+          )}
+        </div>
 
-              {/* Share Actions */}
-              <div className="border-t pt-6">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-4">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setIsLiked(!isLiked)}
-                      className={isLiked ? 'text-red-600 border-red-200' : ''}
-                    >
-                      <Heart className={`h-4 w-4 mr-2 ${isLiked ? 'fill-current' : ''}`} />
-                      {isLiked ? 'Liked' : 'Like'}
-                    </Button>
+        {/* Social Actions */}
+        <Card className="mb-8 bg-white/80 backdrop-blur-sm border-0 shadow-lg">
+          <CardContent className="p-6">
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+              <div className="flex items-center gap-4">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsLiked(!isLiked)}
+                  className={`${isLiked ? 'text-red-600 border-red-200 bg-red-50' : 'hover:bg-gray-50'}`}
+                >
+                  <Heart className={`h-4 w-4 mr-2 ${isLiked ? 'fill-current' : ''}`} />
+                  {isLiked ? 'Liked' : 'Like'}
+                </Button>
 
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => shareToSocial('copy')}
-                    >
-                      <Share2 className="h-4 w-4 mr-2" />
-                      Copy Link
-                    </Button>
-                  </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => shareToSocial('copy')}
+                  className="hover:bg-gray-50"
+                >
+                  <Share2 className="h-4 w-4 mr-2" />
+                  Copy Link
+                </Button>
+              </div>
 
-                  <div className="flex gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => shareToSocial('twitter')}
-                    >
-                      Share on Twitter
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => shareToSocial('facebook')}
-                    >
-                      Share on Facebook
-                    </Button>
-                  </div>
-                </div>
-
-                {/* Share Stats */}
-                <div className="mt-4 pt-4 border-t text-center text-sm text-gray-500">
-                  <span>{data.shareInfo.viewCount} views • Shared {new Date(data.shareInfo.createdAt).toLocaleDateString()}</span>
-                </div>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => shareToSocial('twitter')}
+                  className="hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200"
+                >
+                  Share on X
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => shareToSocial('facebook')}
+                  className="hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200"
+                >
+                  Share on Facebook
+                </Button>
               </div>
             </div>
           </CardContent>
         </Card>
 
-        {/* CTA Section */}
-        <div className="mt-12 text-center">
-          <Card className="max-w-md mx-auto bg-gradient-to-r from-blue-500 to-purple-600 text-white border-0">
+        {/* Memory Details */}
+        {photo.transcription_text && (
+          <Card className="mb-8 bg-white/60 backdrop-blur-sm border-0 shadow-lg">
             <CardContent className="p-6">
-              <h3 className="text-xl font-bold mb-2">Create Your Own Memories</h3>
-              <p className="mb-4 opacity-90">
-                Start preserving your precious moments with voice descriptions and AI enhancement.
-              </p>
-              <Button className="bg-white text-blue-600 hover:bg-gray-100">
-                Try MemoryKeeper Free
-              </Button>
+              <div className="flex items-start gap-4">
+                <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0">
+                  <Volume2 className="h-6 w-6 text-blue-600" />
+                </div>
+                <div className="flex-1">
+                  <h3 className="font-semibold text-gray-900 mb-3">Full Voice Description</h3>
+                  <p className="text-gray-700 leading-relaxed text-base">{photo.transcription_text}</p>
+                  <div className="mt-4 flex items-center gap-2 text-sm text-gray-500">
+                    <span>📅 Shared {new Date(data.shareInfo.createdAt).toLocaleDateString()}</span>
+                    <span>•</span>
+                    <span>👁️ {data.shareInfo.viewCount} views</span>
+                  </div>
+                </div>
+              </div>
             </CardContent>
           </Card>
-        </div>
+        )}
+
+        {/* CTA Section */}
+        <Card className="bg-gradient-to-r from-blue-500 to-purple-600 text-white border-0 shadow-xl">
+          <CardContent className="p-8 text-center">
+            <div className="mb-6">
+              <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                <Volume2 className="h-8 w-8 text-white" />
+              </div>
+              <h3 className="text-2xl font-bold mb-3">Create Your Own Voice Memories</h3>
+              <p className="text-blue-100 mb-6 text-lg">
+                Preserve your precious moments with voice descriptions and share them with loved ones.
+              </p>
+            </div>
+            <Button className="bg-white text-blue-600 hover:bg-gray-100 px-8 py-3 text-lg font-semibold">
+              Start Creating Memories
+            </Button>
+            <p className="text-blue-100 text-sm mt-4">
+              🎤 15 minutes free • Unlimited with premium
+            </p>
+          </CardContent>
+        </Card>
 
         {/* Hidden audio element */}
         {photo.audio_r2_key && (

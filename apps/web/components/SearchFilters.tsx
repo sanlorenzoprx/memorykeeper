@@ -64,7 +64,7 @@ export default function SearchFilters({
   const hasActiveFilters = searchQuery || selectedTags.length > 0 || sortBy !== 'newest' || dateFrom || dateTo;
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4" role="search" aria-label="Memory search and filters">
       {/* Search Bar */}
       <div className="relative">
         <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" aria-hidden="true" />
@@ -74,14 +74,18 @@ export default function SearchFilters({
           onChange={(e) => setSearchQuery(e.target.value)}
           className="pl-10 pr-4 h-11"
           aria-label="Search memories"
+          aria-describedby="search-help"
         />
+        <div id="search-help" className="sr-only">
+          Search through your memories by typing keywords from captions or descriptions
+        </div>
       </div>
 
       {/* Filter Controls */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
         {/* Sort Dropdown */}
         <Select value={sortBy} onValueChange={setSortBy}>
-          <SelectTrigger className="w-full sm:w-40 h-11">
+          <SelectTrigger className="w-full sm:w-40 h-11" aria-label="Sort memories">
             <SelectValue placeholder="Sort by" />
           </SelectTrigger>
           <SelectContent>
@@ -92,10 +96,10 @@ export default function SearchFilters({
         </Select>
 
         {/* Date Range Pickers */}
-        <div className="flex gap-2 w-full sm:w-auto">
+        <div className="flex gap-2 w-full sm:w-auto" role="group" aria-label="Date range filters">
           <Popover open={showDatePicker === 'from'} onOpenChange={(open) => setShowDatePicker(open ? 'from' : null)}>
             <PopoverTrigger asChild>
-              <Button variant="outline" className="flex-1 sm:w-32 h-11 justify-start text-left font-normal">
+              <Button variant="outline" className="flex-1 sm:w-32 h-11 justify-start text-left font-normal" aria-label="Filter memories from date">
                 <CalendarIcon className="mr-2 h-4 w-4" aria-hidden="true" />
                 <span className="truncate">{dateFrom ? format(dateFrom, 'MMM dd') : 'From'}</span>
               </Button>
@@ -109,13 +113,14 @@ export default function SearchFilters({
                   setShowDatePicker(null);
                 }}
                 initialFocus
+                aria-label="Select start date for memory filter"
               />
             </PopoverContent>
           </Popover>
 
           <Popover open={showDatePicker === 'to'} onOpenChange={(open) => setShowDatePicker(open ? 'to' : null)}>
             <PopoverTrigger asChild>
-              <Button variant="outline" className="flex-1 sm:w-32 h-11 justify-start text-left font-normal">
+              <Button variant="outline" className="flex-1 sm:w-32 h-11 justify-start text-left font-normal" aria-label="Filter memories to date">
                 <CalendarIcon className="mr-2 h-4 w-4" aria-hidden="true" />
                 <span className="truncate">{dateTo ? format(dateTo, 'MMM dd') : 'To'}</span>
               </Button>
@@ -129,6 +134,7 @@ export default function SearchFilters({
                   setShowDatePicker(null);
                 }}
                 initialFocus
+                aria-label="Select end date for memory filter"
               />
             </PopoverContent>
           </Popover>

@@ -1,14 +1,17 @@
 'use client';
 import React, { useState, useRef, useCallback } from 'react';
+import Image from 'next/image';
 import { apiPost } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Camera, Upload, RotateCcw, CheckCircle, AlertCircle, Sparkles, Volume2 } from 'lucide-react';
+import { Camera, Upload, RotateCcw, CheckCircle, AlertCircle, Sparkles, Volume2, RefreshCw } from 'lucide-react';
 import VoiceRecorder from './VoiceRecorder';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@clerk/nextjs';
 import { useI18n } from '@/contexts/I18nProvider';
+import { useToast } from '@/components/ui/toast';
+import { UploadError, ERROR_CODES, getErrorMessage, createUploadError } from '@/lib/errors';
 
 interface PhotoUploaderProps {
   onUploadComplete?: () => void;
@@ -18,6 +21,7 @@ export default function PhotoUploader({ onUploadComplete }: PhotoUploaderProps) 
   const queryClient = useQueryClient();
   const { getToken } = useAuth();
   const { t } = useI18n();
+  const { addToast } = useToast();
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [processedPreview, setProcessedPreview] = useState<string | null>(null);
@@ -29,6 +33,8 @@ export default function PhotoUploader({ onUploadComplete }: PhotoUploaderProps) 
   const [showComparison, setShowComparison] = useState(false);
   const [showVoiceRecorder, setShowVoiceRecorder] = useState(false);
   const [voiceTranscription, setVoiceTranscription] = useState<string>('');
+  const [uploadError, setUploadError] = useState<{ title: string; message: string; retryable: boolean } | null>(null);
+  const [retryCount, setRetryCount] = useState(0);
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const originalCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -87,9 +93,34 @@ export default function PhotoUploader({ onUploadComplete }: PhotoUploaderProps) 
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
-    if (selectedFile) {
+    if (!selectedFile) return;
+
+    try {
+      // Validate file type
+      if (!selectedFile.type.startsWith('image/')) {
+        const error = createUploadError(
+          'Please select a valid image file (JPG, PNG, GIF, etc.)',
+          ERROR_CODES.INVALID_FILE_TYPE,
+          false
+        );
+        throw error;
+      }
+
+      // Validate file size (50MB limit)
+      const maxSize = 50 * 1024 * 1024; // 50MB
+      if (selectedFile.size > maxSize) {
+        const error = createUploadError(
+          `File size (${(selectedFile.size / (1024 * 1024)).toFixed(1)}MB) exceeds the 50MB limit`,
+          ERROR_CODES.FILE_TOO_LARGE,
+          false
+        );
+        throw error;
+      }
+
       setFile(selectedFile);
       setCameraError(null);
+      setUploadError(null);
+      setRetryCount(0);
 
       // Create preview
       const reader = new FileReader();
@@ -99,18 +130,45 @@ export default function PhotoUploader({ onUploadComplete }: PhotoUploaderProps) 
 
         // Process the image for enhancement
         setIsProcessing(true);
-        processImage(originalPreview).then((processed) => {
-          setProcessedPreview(processed);
-          setIsProcessing(false);
-        });
+        processImage(originalPreview)
+          .then((processed) => {
+            setProcessedPreview(processed);
+            setIsProcessing(false);
+          })
+          .catch((error) => {
+            console.error('Image processing failed:', error);
+            addToast({
+              type: 'warning',
+              title: 'Processing Failed',
+              message: 'Could not enhance the image, but you can still upload it as is.',
+              duration: 4000,
+            });
+            setIsProcessing(false);
+          });
+      };
+      reader.onerror = () => {
+        const error = createUploadError('Failed to read the selected file', ERROR_CODES.PROCESSING_FAILED, true);
+        throw error;
       };
       reader.readAsDataURL(selectedFile);
+    } catch (error) {
+      const errorInfo = getErrorMessage(error);
+      setUploadError(errorInfo);
+      addToast({
+        type: 'error',
+        title: errorInfo.title,
+        message: errorInfo.message,
+        duration: 6000,
+      });
     }
   };
 
   const startCamera = useCallback(async () => {
     try {
       setCameraError(null);
+      setUploadError(null);
+      setRetryCount(0);
+
       const stream = await navigator.mediaDevices.getUserMedia({
         video: {
           facingMode: 'environment', // Use back camera on mobile
@@ -126,9 +184,42 @@ export default function PhotoUploader({ onUploadComplete }: PhotoUploaderProps) 
       }
     } catch (error) {
       console.error('Camera access error:', error);
-      setCameraError('Camera access denied or unavailable. Please check permissions.');
+
+      let errorInfo;
+      if (error instanceof DOMException) {
+        if (error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError') {
+          errorInfo = {
+            title: 'Camera Access Denied',
+            message: 'Please allow camera access in your browser settings and try again.',
+            retryable: true,
+          };
+        } else if (error.name === 'NotFoundError' || error.name === 'DevicesNotFoundError') {
+          errorInfo = {
+            title: 'Camera Not Available',
+            message: 'No camera was found on this device. Please connect a camera and try again.',
+            retryable: false,
+          };
+        } else {
+          errorInfo = {
+            title: 'Camera Error',
+            message: 'An error occurred while accessing the camera. Please try again.',
+            retryable: true,
+          };
+        }
+      } else {
+        errorInfo = getErrorMessage(error);
+      }
+
+      setCameraError(errorInfo.message);
+      setUploadError(errorInfo);
+      addToast({
+        type: 'error',
+        title: errorInfo.title,
+        message: errorInfo.message,
+        duration: 6000,
+      });
     }
-  }, []);
+  }, [addToast]);
 
   // Keyboard navigation for accessibility
   React.useEffect(() => {
@@ -192,91 +283,193 @@ export default function PhotoUploader({ onUploadComplete }: PhotoUploaderProps) 
 
   const handleUpload = async (useEnhanced: boolean = false) => {
     if (!file) {
-      alert('Please select or capture a photo first.');
+      const error = createUploadError('Please select or capture a photo first.', ERROR_CODES.INVALID_FILE_TYPE, false);
+      const errorInfo = getErrorMessage(error);
+      setUploadError(errorInfo);
+      addToast({
+        type: 'error',
+        title: errorInfo.title,
+        message: errorInfo.message,
+        duration: 4000,
+      });
       return;
     }
 
     setIsUploading(true);
     setUploadProgress(0);
+    setUploadError(null);
 
-    try {
-      const token = await getToken();
+    const maxRetries = 3;
+    let attempt = 0;
 
-      // Use processed image if available and selected
-      let uploadFile = file;
-      let filename = file.name;
-
-      if (processedPreview && useEnhanced) {
-        // Convert processed preview back to file
-        const response = await fetch(processedPreview);
-        const blob = await response.blob();
-        uploadFile = new File([blob], `enhanced-${filename}`, { type: 'image/jpeg' });
-        filename = `enhanced-${filename}`;
-      }
-
-      // 1. Get a presigned URL from our backend
-      setUploadProgress(25);
-      const { uploadUrl, key } = await apiPost('/api/photos/uploads/image', { filename }, token);
-
-      // 2. Check if we're in development mode with mock URLs
-      if (uploadUrl.startsWith('dev-mode://')) {
-        console.log('Development mode: Simulating file upload');
-        setUploadProgress(50);
-
-        // Simulate upload delay
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        setUploadProgress(75);
-
-        // Skip actual upload and proceed to create photo record
-        console.log('Mock upload completed, creating photo record...');
-      } else {
-        setUploadProgress(50);
-      // 2. Upload the file directly to R2 using the presigned URL
-      const uploadResponse = await fetch(uploadUrl, {
-        method: 'PUT',
-          body: uploadFile,
-        headers: {
-            'Content-Type': uploadFile.type,
-        },
-      });
-
-      if (!uploadResponse.ok) {
-          throw new Error(`Failed to upload file to R2: ${uploadResponse.status}`);
-        }
-        setUploadProgress(75);
-      }
-
-      // 3. Notify our backend that the upload is complete to create the photo record
-      await apiPost('/api/photos', { r2Key: key }, token);
-      setUploadProgress(100);
-
-      // 4. Trigger gamification action for digitizing
+    while (attempt < maxRetries) {
       try {
-      await apiPost('/api/gamification/actions/digitize', {}, token);
-      } catch (gamificationError) {
-        console.warn('Gamification update failed:', gamificationError);
+        const token = await getToken();
+
+        // Use processed image if available and selected
+        let uploadFile = file;
+        let filename = file.name;
+
+        if (processedPreview && useEnhanced) {
+          try {
+            // Convert processed preview back to file
+            const response = await fetch(processedPreview);
+            if (!response.ok) {
+              throw new Error('Failed to process enhanced image');
+            }
+            const blob = await response.blob();
+            uploadFile = new File([blob], `enhanced-${filename}`, { type: 'image/jpeg' });
+            filename = `enhanced-${filename}`;
+          } catch (error) {
+            console.error('Failed to prepare enhanced image:', error);
+            addToast({
+              type: 'warning',
+              title: 'Enhancement Failed',
+              message: 'Could not prepare enhanced version, uploading original instead.',
+              duration: 4000,
+            });
+          }
+        }
+
+        // Step 1: Get a presigned URL from our backend
+        setUploadProgress(10);
+        let uploadUrl: string;
+        let key: string;
+
+        try {
+          const response = await apiPost('/api/photos/uploads/image', { filename }, token);
+          uploadUrl = response.uploadUrl;
+          key = response.key;
+        } catch (error) {
+          throw createUploadError(
+            'Failed to prepare upload. Please check your connection and try again.',
+            ERROR_CODES.PRESIGNED_URL_FAILED,
+            true
+          );
+        }
+
+        // Step 2: Upload the file to R2
+        setUploadProgress(30);
+
+        if (uploadUrl.startsWith('dev-mode://')) {
+          // Development mode: simulate upload
+          console.log('Development mode: Simulating file upload');
+          await new Promise(resolve => setTimeout(resolve, 1500));
+          setUploadProgress(70);
+        } else {
+          // Production mode: actual upload
+          try {
+            const uploadResponse = await fetch(uploadUrl, {
+              method: 'PUT',
+              body: uploadFile,
+              headers: {
+                'Content-Type': uploadFile.type,
+              },
+            });
+
+            if (!uploadResponse.ok) {
+              const errorText = await uploadResponse.text().catch(() => 'Unknown error');
+              throw createUploadError(
+                `Upload failed with status ${uploadResponse.status}: ${errorText}`,
+                ERROR_CODES.UPLOAD_FAILED,
+                uploadResponse.status >= 500 || uploadResponse.status === 429
+              );
+            }
+          } catch (error) {
+            if (error instanceof UploadError) throw error;
+
+            throw createUploadError(
+              'Network error during upload. Please check your connection and try again.',
+              ERROR_CODES.NETWORK_ERROR,
+              true
+            );
+          }
+        }
+
+        // Step 3: Create photo record in database
+        setUploadProgress(80);
+        try {
+          await apiPost('/api/photos', { r2Key: key }, token);
+        } catch (error) {
+          throw createUploadError(
+            'Failed to save photo information. Please try again.',
+            ERROR_CODES.PHOTO_CREATION_FAILED,
+            true
+          );
+        }
+
+        // Step 4: Trigger gamification (optional)
+        setUploadProgress(90);
+        try {
+          await apiPost('/api/gamification/actions/digitize', {}, token);
+        } catch (gamificationError) {
+          console.warn('Gamification update failed:', gamificationError);
+          // Don't fail the upload for gamification errors
+        }
+
+        setUploadProgress(100);
+
+        // Success!
+        addToast({
+          type: 'success',
+          title: 'Upload Complete!',
+          message: 'Your memory has been saved successfully.',
+          duration: 4000,
+        });
+
+        queryClient.invalidateQueries({ queryKey: ['photos'] });
+
+        // Reset state
+        setFile(null);
+        setPreview(null);
+        setProcessedPreview(null);
+        setShowComparison(false);
+        setUploadProgress(0);
+        setRetryCount(0);
+
+        if (onUploadComplete) {
+          onUploadComplete();
+        }
+        return;
+
+      } catch (error) {
+        attempt++;
+        console.error(`Upload attempt ${attempt} failed:`, error);
+
+        const errorInfo = getErrorMessage(error);
+
+        // If this is a retryable error and we haven't exceeded max retries
+        if (errorInfo.retryable && attempt < maxRetries) {
+          setRetryCount(attempt);
+          setUploadProgress(0);
+
+          addToast({
+            type: 'warning',
+            title: `Upload Failed (Attempt ${attempt}/${maxRetries})`,
+            message: `${errorInfo.message} Retrying in ${attempt * 2} seconds...`,
+            duration: 3000,
+          });
+
+          // Wait before retrying (exponential backoff)
+          await new Promise(resolve => setTimeout(resolve, attempt * 2000));
+          continue;
+        }
+
+        // Final failure
+        setUploadError(errorInfo);
+        addToast({
+          type: 'error',
+          title: errorInfo.title,
+          message: errorInfo.message,
+          duration: 8000,
+        });
+
+        setUploadProgress(0);
+        break;
       }
-
-      alert('Photo uploaded successfully!');
-      queryClient.invalidateQueries({ queryKey: ['photos'] });
-
-      // Reset state
-      setFile(null);
-      setPreview(null);
-      setProcessedPreview(null);
-      setShowComparison(false);
-      setUploadProgress(0);
-
-      if (onUploadComplete) {
-        onUploadComplete();
-      }
-    } catch (error) {
-      console.error('Upload error:', error);
-      alert(`Upload failed: ${(error as Error).message}`);
-    } finally {
-      setIsUploading(false);
-      setUploadProgress(0);
     }
+
+    setIsUploading(false);
   };
 
   const resetUpload = () => {
@@ -289,6 +482,14 @@ export default function PhotoUploader({ onUploadComplete }: PhotoUploaderProps) 
     setShowComparison(false);
     setShowVoiceRecorder(false);
     setVoiceTranscription('');
+    setUploadError(null);
+    setRetryCount(0);
+  };
+
+  const handleRetry = () => {
+    setUploadError(null);
+    setRetryCount(0);
+    // The upload function will handle the retry logic
   };
 
   return (
@@ -521,11 +722,18 @@ export default function PhotoUploader({ onUploadComplete }: PhotoUploaderProps) 
                 </div>
               )}
 
-              {/* Upload Progress */}
+              {/* Upload Progress & Error Display */}
               {isUploading && (
                 <div className="space-y-2">
                   <div className="flex items-center justify-between text-sm">
-                    <span>Uploading...</span>
+                    <span className="flex items-center gap-2">
+                      Uploading...
+                      {retryCount > 0 && (
+                        <span className="text-xs text-muted-foreground">
+                          (Attempt {retryCount + 1}/3)
+                        </span>
+                      )}
+                    </span>
                     <span>{uploadProgress}%</span>
                   </div>
                   <div className="w-full bg-muted rounded-full h-2">
@@ -537,52 +745,97 @@ export default function PhotoUploader({ onUploadComplete }: PhotoUploaderProps) 
                 </div>
               )}
 
+              {/* Error Display with Retry */}
+              {uploadError && !isUploading && (
+                <div className="space-y-3 p-4 bg-destructive/10 border border-destructive/20 rounded-lg">
+                  <div className="flex items-start gap-3">
+                    <AlertCircle className="h-5 w-5 text-destructive flex-shrink-0 mt-0.5" />
+                    <div className="flex-1">
+                      <div className="font-medium text-sm text-destructive">
+                        {uploadError.title}
+                      </div>
+                      <div className="text-sm text-muted-foreground mt-1">
+                        {uploadError.message}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-2">
+                    {uploadError.retryable && (
+                      <Button
+                        onClick={() => {
+                          handleRetry();
+                          handleUpload(false);
+                        }}
+                        variant="outline"
+                        size="sm"
+                        className="flex items-center gap-2"
+                      >
+                        <RefreshCw className="h-4 w-4" />
+                        Try Again
+                      </Button>
+                    )}
+                    <Button
+                      onClick={resetUpload}
+                      variant="ghost"
+                      size="sm"
+                      className="flex items-center gap-2"
+                    >
+                      <RotateCcw className="h-4 w-4" />
+                      Start Over
+                    </Button>
+                  </div>
+                </div>
+              )}
+
               {/* Upload Buttons */}
-              <div className="flex gap-2">
-                {processedPreview && (
+              {!uploadError && (
+                <div className="flex gap-2">
+                  {processedPreview && (
+                    <Button
+                      onClick={() => handleUpload(true)}
+                      disabled={!file || isUploading || isProcessing}
+                      variant="default"
+                      className="flex-1"
+                      size="lg"
+                      aria-label="Upload enhanced version of the photo"
+                    >
+                      {isUploading ? (
+                        <>
+                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" aria-hidden="true" />
+                          Uploading Enhanced...
+                        </>
+                      ) : (
+                        <>
+                          <Sparkles className="mr-2 h-4 w-4" aria-hidden="true" />
+                          Upload Enhanced
+                        </>
+                      )}
+                    </Button>
+                  )}
+
                   <Button
-                    onClick={() => handleUpload(true)}
+                    onClick={() => handleUpload(false)}
                     disabled={!file || isUploading || isProcessing}
-                    variant="default"
-                    className="flex-1"
+                    variant={processedPreview ? "outline" : "default"}
+                    className={processedPreview ? "flex-1" : "w-full"}
                     size="lg"
-                    aria-label="Upload enhanced version of the photo"
+                    aria-label={processedPreview ? 'Upload original version of the photo' : 'Upload the photo'}
                   >
                     {isUploading ? (
                       <>
                         <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" aria-hidden="true" />
-                        Uploading Enhanced...
+                        Uploading...
                       </>
                     ) : (
                       <>
-                        <Sparkles className="mr-2 h-4 w-4" aria-hidden="true" />
-                        Upload Enhanced
+                        <CheckCircle className="mr-2 h-4 w-4" aria-hidden="true" />
+                        {processedPreview ? 'Upload Original' : 'Upload Photo'}
                       </>
                     )}
                   </Button>
-                )}
-
-                <Button
-                  onClick={() => handleUpload(false)}
-                  disabled={!file || isUploading || isProcessing}
-                  variant={processedPreview ? "outline" : "default"}
-                  className={processedPreview ? "flex-1" : "w-full"}
-                  size="lg"
-                  aria-label={processedPreview ? 'Upload original version of the photo' : 'Upload the photo'}
-                >
-                  {isUploading ? (
-                    <>
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" aria-hidden="true" />
-                      Uploading...
-                    </>
-                  ) : (
-                    <>
-                      <CheckCircle className="mr-2 h-4 w-4" aria-hidden="true" />
-                      {processedPreview ? 'Upload Original' : 'Upload Photo'}
-                    </>
-                  )}
-        </Button>
-              </div>
+                </div>
+              )}
             </div>
           )}
         </CardContent>

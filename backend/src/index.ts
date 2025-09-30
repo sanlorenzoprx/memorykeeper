@@ -4,6 +4,7 @@
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { authMiddleware } from './middleware/auth';
+import { rateLimiters } from './middleware/rate-limit';
 import photos from './routes/photos';
 import audio from './routes/audio';
 import albums from './routes/albums';
@@ -36,10 +37,15 @@ app.get('/', (c) => {
 });
 
 // Public share route - does not require authentication
+app.use('/share/*', rateLimiters.public);
 app.route('/share', share);
 
 // Apply auth middleware to all /api routes
 app.use('/api/*', authMiddleware);
+
+// Apply rate limiting to API routes
+app.use('/api/photos/uploads/*', rateLimiters.upload); // Strict rate limiting for uploads
+app.use('/api/*', rateLimiters.api); // Moderate rate limiting for API endpoints
 
 // Authenticated API routes
 app.route('/api/photos', photos);

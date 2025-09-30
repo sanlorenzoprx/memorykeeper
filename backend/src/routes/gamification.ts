@@ -1,5 +1,8 @@
 import { Hono } from 'hono';
+import { z } from 'zod';
+import { zValidator } from '@hono/zod-validator';
 import type { Env } from '../env';
+import { getUserPlan } from '../utils/user-plans';
 
 const app = new Hono<{ Bindings: Env; Variables: { auth: { userId: string } } }>();
 
@@ -65,6 +68,45 @@ app.post('/actions/:type', async (c) => {
       ).bind(userId, achievementId, new Date().toISOString()).run();
     }
   });
+
+  return c.json({ success: true });
+});
+
+// GET /api/gamification/transcription-usage - Get transcription usage and limits
+app.get('/transcription-usage', async (c) => {
+  const { userId } = c.get('auth');
+
+  const plan = await getUserPlan(c.env, userId);
+
+  // Get recent transcription activity
+  const recentTranscriptions = await c.env.DB.prepare(`
+    SELECT audio_duration_seconds, transcription_length, created_at
+    FROM transcription_usage
+    WHERE user_id = ?
+    ORDER BY created_at DESC
+    LIMIT 10
+  `).bind(userId).all();
+
+  // Note: Removed achievements and streak tracking to focus on timer-based motivation
+
+  return c.json({
+    plan: {
+      type: plan.plan_type,
+      transcription_seconds_used: plan.transcription_seconds_used,
+      transcription_seconds_limit: plan.transcription_seconds_limit,
+      transcription_reset_date: plan.transcription_reset_date,
+      remaining_seconds: Math.max(0, plan.transcription_seconds_limit - plan.transcription_seconds_used)
+    },
+    recent_activity: recentTranscriptions.results || []
+  });
+});
+
+// POST /api/gamification/actions/transcribe - Track transcription for analytics
+app.post('/actions/transcribe', async (c) => {
+  const { userId } = c.get('auth');
+
+  // Simple tracking for analytics - no gamification
+  console.log(`User ${userId} performed transcription action`);
 
   return c.json({ success: true });
 });
