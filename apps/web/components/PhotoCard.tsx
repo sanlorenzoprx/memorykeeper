@@ -45,7 +45,12 @@ export default function PhotoCard({ photo }: { photo: Photo }) {
   return (
     <div className="border rounded-lg overflow-hidden shadow-lg transition-transform hover:scale-105">
       <div className="w-full h-48 relative">
-        <Image src={r2Url} alt={photo.alt_text || 'A memory'} layout="fill" objectFit="cover" />
+        <Image
+          src={r2Url}
+          alt={photo.alt_text || 'A memory'}
+          fill
+          style={{ objectFit: 'cover' }}
+        />
       </div>
       <div className="p-4">
         {isEditing ? (

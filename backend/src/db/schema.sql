@@ -26,7 +26,8 @@ CREATE TABLE photos (
   alt_text TEXT,
   transcription_text TEXT, -- Stores the text from voice captions
   enhanced_r2_key TEXT,
-  created_at TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
@@ -89,7 +90,7 @@ CREATE TABLE user_achievements (
 CREATE TABLE user_streaks (
   user_id TEXT PRIMARY KEY,
   current_streak INTEGER DEFAULT 0,
-  last_activity_date TEXT NOT NULL,
+  last_activity_date TEXT NOT NULL DEFAULT (date('now')),
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
@@ -99,7 +100,9 @@ CREATE TABLE shares (
   type TEXT NOT NULL, -- 'photo' or 'album'
   target_id TEXT NOT NULL,
   share_token TEXT UNIQUE NOT NULL,
-  created_at TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  view_count INTEGER DEFAULT 0,
   FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
@@ -110,6 +113,18 @@ CREATE TABLE jobs (
   status TEXT NOT NULL DEFAULT 'pending', -- 'pending', 'done', 'failed'
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+
+-- Create indexes for performance
+CREATE INDEX IF NOT EXISTS idx_photos_owner_id ON photos(owner_id);
+CREATE INDEX IF NOT EXISTS idx_photos_created_at ON photos(created_at);
+CREATE INDEX IF NOT EXISTS idx_photos_r2_key ON photos(r2_key);
+CREATE INDEX IF NOT EXISTS idx_albums_owner_id ON albums(owner_id);
+CREATE INDEX IF NOT EXISTS idx_shares_owner_id ON shares(owner_id);
+CREATE INDEX IF NOT EXISTS idx_shares_share_token ON shares(share_token);
+CREATE INDEX IF NOT EXISTS idx_photo_tags_photo_id ON photo_tags(photo_id);
+CREATE INDEX IF NOT EXISTS idx_user_plans_user_id ON user_plans(user_id);
+CREATE INDEX IF NOT EXISTS idx_transcription_usage_user_id ON transcription_usage(user_id);
+CREATE INDEX IF NOT EXISTS idx_transcription_usage_created_at ON transcription_usage(created_at);
 
 -- Seed initial achievements
 INSERT INTO achievements (id, name, description) VALUES
