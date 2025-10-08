@@ -10,25 +10,30 @@ app.get('/', async (c) => {
     return c.json({ error: 'Forbidden: Admins only' }, 403);
   }
 
-  const { status, limit = '50' } = c.req.query();
+  const { status, kind, limit = '50', offset = '0' } = c.req.query();
   const lim = Math.max(1, Math.min(Number(limit) || 50, 200));
+  const off = Math.max(0, Number(offset) || 0);
 
   let query = `
     SELECT id, kind, status, attempts, created_at, last_error, next_run_at
     FROM jobs
+    WHERE 1=1
   `;
-  let stmt: D1PreparedStatement;
+  const binds: any[] = [];
 
   if (status) {
-    query += ` WHERE status = ?`;
-    query += ` ORDER BY created_at DESC LIMIT ?`;
-    stmt = c.env.DB.prepare(query).bind(status, lim);
-  } else {
-    query += ` ORDER BY created_at DESC LIMIT ?`;
-    stmt = c.env.DB.prepare(query).bind(lim);
+    query += ` AND status = ?`;
+    binds.push(status);
+  }
+  if (kind) {
+    query += ` AND kind = ?`;
+    binds.push(kind);
   }
 
-  const { results } = await stmt.all();
+  query += ` ORDER BY created_at DESC LIMIT ? OFFSET ?`;
+  binds.push(lim, off);
+
+  const { results } = await c.env.DB.prepare(query).bind(...binds).all();
   return c.json({ jobs: results || [] });
 });
 

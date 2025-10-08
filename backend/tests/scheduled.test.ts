@@ -80,7 +80,30 @@ describe('Scheduled job retry/backoff', () => {
     await workerApp.scheduled({} as any, env, {} as any);
 
     // Expect status failed update
-    const matched = updates.some((q) => q.includes(\"UPDATE jobs SET status = 'failed'\")); 
+    const matched = updates.some((q) => q.includes("UPDATE jobs SET status = 'failed'")); 
     expect(matched).toBe(true);
+  });
+
+  test('max_attempts reached -> mark failed even for retryable error', async () => {
+    const job = {
+      id: 3,
+      kind: 'transcribe',
+      payload: JSON.stringify({ r2Key: 'k', photoId: 'p1' }),
+      attempts: 2, // next attempt would be 3, equals max_attempts
+      max_attempts: 3,
+      next_run_at: null,
+      created_at: new Date().toISOString(),
+    };
+
+    const updates: string[] = [];
+    const env = makeEnvWithJobs(job, updates);
+
+    await workerApp.scheduled({} as any, env, {} as any);
+
+    // Expect status failed update instead of setting next_run_at
+    const failed = updates.some((q) => q.includes("UPDATE jobs SET status = 'failed'"));
+    const scheduled = updates.some((q) => q.includes('next_run_at'));
+    expect(failed).toBe(true);
+    expect(scheduled).toBe(false);
   });
 });

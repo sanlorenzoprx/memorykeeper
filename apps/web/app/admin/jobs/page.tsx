@@ -22,6 +22,8 @@ type Stat = {
   count: number;
 };
 
+const PAGE_SIZE_OPTIONS = [10, 25, 50, 100];
+
 export default function AdminJobsPage() {
   const { user } = useUser();
   const isAdmin = useMemo(() => {
@@ -32,13 +34,11 @@ export default function AdminJobsPage() {
   }, [user]);
 
   const [statusFilter, setStatusFilter] = useState<string | undefined>(undefined);
+  const [kindFilter, setKindFilter] = useState<string | undefined>(undefined);
+  const [limit, setLimit] = useState<number>(25);
+  const [page, setPage] = useState<number>(0);
 
-  const jobsQuery = useQuery<{ jobs: Job[] }>({
-    queryKey: ['admin-jobs', statusFilter],
-    queryFn: () => apiGet(`/api/jobs${statusFilter ? `?status=${statusFilter}` : ''}`),
-    refetchInterval: 5000,
-    refetchOnWindowFocus: true,
-  });
+  const offset = page * limit;
 
   const statsQuery = useQuery<{ stats: Stat[] }>({
     queryKey: ['admin-jobs-stats'],
@@ -46,7 +46,32 @@ export default function AdminJobsPage() {
     refetchInterval: 15000,
   });
 
-  const handleStatusChange = (next?: string) => setStatusFilter(next);
+  const kinds = useMemo(() => {
+    const uniques = new Set<string>();
+    statsQuery.data?.stats.forEach((s) => uniques.add(s.kind));
+    return Array.from(uniques);
+  }, [statsQuery.data]);
+
+  const jobsQuery = useQuery<{ jobs: Job[] }>({
+    queryKey: ['admin-jobs', statusFilter, kindFilter, limit, page],
+    queryFn: () => {
+      const params = new URLSearchParams();
+      params.set('limit', String(limit));
+      params.set('offset', String(offset));
+      if (statusFilter) params.set('status', statusFilter);
+      if (kindFilter) params.set('kind', kindFilter);
+      return apiGet(`/api/jobs?${params.toString()}`);
+    },
+    refetchInterval: 5000,
+    refetchOnWindowFocus: true,
+  });
+
+  const handleStatusChange = (next?: string) => { setPage(0); setStatusFilter(next); };
+  const handleKindChange = (next?: string) => { setPage(0); setKindFilter(next); };
+  const handleLimitChange = (n: number) => { setPage(0); setLimit(n); };
+
+  const canPrev = page > 0;
+  const canNext = (jobsQuery.data?.jobs.length || 0) >= limit;
 
   return (
     <div className="space-y-6">
@@ -64,11 +89,36 @@ export default function AdminJobsPage() {
           <>
             <h1 className="text-2xl font-semibold">Jobs Dashboard</h1>
 
-            <div className="flex gap-2">
-              <Button variant={statusFilter === undefined ? 'default' : 'outline'} onClick={() => handleStatusChange(undefined)}>All</Button>
-              <Button variant={statusFilter === 'pending' ? 'default' : 'outline'} onClick={() => handleStatusChange('pending')}>Pending</Button>
-              <Button variant={statusFilter === 'done' ? 'default' : 'outline'} onClick={() => handleStatusChange('done')}>Done</Button>
-              <Button variant={statusFilter === 'failed' ? 'default' : 'outline'} onClick={() => handleStatusChange('failed')}>Failed</Button>
+            <div className="flex flex-wrap gap-2 items-center">
+              <div className="flex gap-2">
+                <Button variant={statusFilter === undefined ? 'default' : 'outline'} onClick={() => handleStatusChange(undefined)}>All</Button>
+                <Button variant={statusFilter === 'pending' ? 'default' : 'outline'} onClick={() => handleStatusChange('pending')}>Pending</Button>
+                <Button variant={statusFilter === 'done' ? 'default' : 'outline'} onClick={() => handleStatusChange('done')}>Done</Button>
+                <Button variant={statusFilter === 'failed' ? 'default' : 'outline'} onClick={() => handleStatusChange('failed')}>Failed</Button>
+              </div>
+
+              <div className="flex gap-2 items-center">
+                <label className="text-sm text-gray-600">Kind:</label>
+                <select
+                  className="border rounded px-2 py-1 text-sm"
+                  value={kindFilter ?? ''}
+                  onChange={(e) => handleKindChange(e.target.value || undefined)}
+                >
+                  <option value="">All</option>
+                  {kinds.map((k) => <option key={k} value={k}>{k}</option>)}
+                </select>
+              </div>
+
+              <div className="flex gap-2 items-center">
+                <label className="text-sm text-gray-600">Page size:</label>
+                <select
+                  className="border rounded px-2 py-1 text-sm"
+                  value={limit}
+                  onChange={(e) => handleLimitChange(Number(e.target.value))}
+                >
+                  {PAGE_SIZE_OPTIONS.map((n) => <option key={n} value={n}>{n}</option>)}
+                </select>
+              </div>
             </div>
 
             <section>
@@ -86,7 +136,14 @@ export default function AdminJobsPage() {
             </section>
 
             <section>
-              <h2 className="text-xl font-medium mt-4 mb-2">Jobs</h2>
+              <div className="flex items-center justify-between">
+                <h2 className="text-xl font-medium mt-4 mb-2">Jobs</h2>
+                <div className="flex gap-2 items-center">
+                  <Button variant="outline" disabled={!canPrev} onClick={() => setPage((p) => Math.max(0, p - 1))}>Prev</Button>
+                  <span className="text-sm">Page {page + 1}</span>
+                  <Button variant="outline" disabled={!canNext} onClick={() => setPage((p) => p + 1)}>Next</Button>
+                </div>
+              </div>
               {jobsQuery.isLoading && <p>Loading jobs...</p>}
               {jobsQuery.error && <p className="text-red-600">Failed to load jobs</p>}
               <div className="overflow-x-auto border rounded">
