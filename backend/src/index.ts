@@ -7,6 +7,7 @@ import albums from './routes/albums';
 import share from './routes/share';
 import gamification from './routes/gamification';
 import { performR2Delete } from './utils/jobs';
+import { transcribeAudioAndUpdatePhoto } from './services/ai';
 import type { Env } from './env';
 
 const app = new Hono<{ Bindings: Env }>();
@@ -55,6 +56,8 @@ export default {
       try {
         if (kind === 'r2-delete') {
           await performR2Delete(env, payload.r2Key);
+        } else if (kind === 'transcribe') {
+          await transcribeAudioAndUpdatePhoto(env, payload.r2Key, payload.photoId);
         }
         // Add other job kinds here, e.g., 'ai-enhance'
 

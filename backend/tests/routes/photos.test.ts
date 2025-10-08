@@ -72,4 +72,26 @@ describe('Photos Routes', () => {
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ success: true });
   });
+
+  test('POST /api/photos/:photoId/transcribe - Enqueues transcription job', async () => {
+    const req = new Request('http://localhost/api/photos/mock-photo/transcribe', {
+      method: 'POST',
+      body: JSON.stringify({ r2Key: 'mock-audio-key' }),
+      headers: { 'Content-Type': 'application/json' },
+    });
+    const res = await app.request(req, {}, mockEnv);
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json).toMatchObject({ success: true });
+
+    const calls = (mockEnv.DB.prepare as any).mock.calls;
+    expect(
+      calls.some(
+        (args: any[]) =>
+          typeof args[0] === 'string' &&
+          args[0].includes('INSERT INTO jobs') &&
+          args[0].includes('(kind, payload)')
+      )
+    ).toBe(true);
+  });
 });
