@@ -15,12 +15,26 @@ bucket_name = "memorykeeper-photos"
 [ai]
 binding = "AI"
 
+# Analytics Engine dataset for error tracking / metrics
+[[analytics_engine_datasets]]
+binding = "ANALYTICS"
+dataset = "memorykeeper_metrics"
+
 # Cron trigger for processing background jobs
 [triggers]
 crons = ["* * * * *"] # Runs every minute to process jobs quickly in dev. Change for prod.
 
 [vars]
-# Production environment variables
-# These should be set via `wrangler secret put` for security
-# CLERK_JWKS_URI = "..."
-# CLERK_ISSUER = "..."
+# Environment variables are configured via:
+# - `wrangler secret put` for sensitive values in production
+# - `.dev.vars` for local development (see README)
+#
+# The backend expects these variables:
+# - CLERK_JWKS_URI: Clerk JWKS URL for JWT verification
+# - CLERK_ISSUER: Clerk token issuer URL
+# - AI_MODEL_WHISPER (optional): override transcription model (defaults to "@cf/openai/whisper")
+#
+# Examples (use secrets in prod, not plain [vars]):
+# CLERK_JWKS_URI = "https://YOUR-CLERK-DOMAIN/.well-known/jwks.json"
+# CLERK_ISSUER = "https://YOUR-CLERK-DOMAIN"
+# AI_MODEL_WHISPER = "@cf/openai/whisper"

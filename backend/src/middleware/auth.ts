@@ -5,11 +5,13 @@ type AuthEnv = {
     Variables: {
         auth: {
             userId: string;
+            isAdmin?: boolean;
         }
     },
     Bindings: {
         CLERK_JWKS_URI: string;
         CLERK_ISSUER: string;
+        ADMIN_USER_IDS?: string;
     }
 }
 
@@ -21,6 +23,23 @@ function getJwksFetcher(jwksUri: string) {
     jwksFetcher = createRemoteJWKSet(new URL(jwksUri));
   }
   return jwksFetcher;
+}
+
+function computeIsAdmin(userId: string, payload: Record<string, any>, envAdminList: string | undefined): boolean {
+  const envAdmins = (envAdminList || '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+  if (envAdmins.includes(userId)) return true;
+
+  const roles: string[] = Array.isArray(payload['roles'])
+    ? payload['roles']
+    : Array.isArray(payload['organization_roles'])
+      ? payload['organization_roles']
+      : [];
+
+  const role = payload['role'] || payload['org_role'] || payload['public_metadata']?.role;
+  return roles.includes('admin') || role === 'admin';
 }
 
 export const authMiddleware = createMiddleware<AuthEnv>(async (c, next) => {
@@ -46,13 +65,15 @@ export const authMiddleware = createMiddleware<AuthEnv>(async (c, next) => {
             algorithms: ['RS256'],
         });
 
-        const userId = payload.sub;
+        const userId = payload.sub as string | undefined;
         if (!userId) {
             return c.json({ error: 'Unauthorized: Invalid token payload' }, 401);
         }
 
-        // Set the userId in the context for downstream routes
-        c.set('auth', { userId });
+        const isAdmin = computeIsAdmin(userId, payload as any, c.env.ADMIN_USER_IDS);
+
+        // Set the userId and isAdmin flag in the context for downstream routes
+        c.set('auth', { userId, isAdmin });
         await next();
 
     } catch (err) {

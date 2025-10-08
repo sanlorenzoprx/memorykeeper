@@ -15,6 +15,12 @@ export async function transcribeAudioAndUpdatePhoto(env: Env, r2Key: string, pho
   }
   const audioBuffer = await audioObj.arrayBuffer();
 
+  // Basic size limit to keep within Workers constraints (~20MB)
+  const MAX_AUDIO_BYTES = 20 * 1024 * 1024;
+  if (audioBuffer.byteLength > MAX_AUDIO_BYTES) {
+    throw new Error(`Audio file too large (${audioBuffer.byteLength} bytes). Max allowed is ${MAX_AUDIO_BYTES} bytes.`);
+  }
+
   const model = env.AI_MODEL_WHISPER || '@cf/openai/whisper';
   const response: { text: string } = await env.AI.run(model, {
     audio: [...new Uint8Array(audioBuffer)],

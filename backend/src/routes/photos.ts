@@ -2,9 +2,14 @@ import { Hono } from 'hono';
 import { z } from 'zod';
 import { zValidator } from '@hono/zod-validator';
 import type { Env } from '../env';
-import { scheduleR2Delete } from '../utils/jobs';
+import { scheduleR2Delete, scheduleTranscriptionJob } from '../utils/jobs';
+import { createRateLimitMiddleware } from '../middleware/rateLimit';
 
 const app = new Hono<{ Bindings: Env; Variables: { auth: { userId: string } } }>();
+
+// Apply rate limits to sensitive endpoints
+const uploadsImageLimiter = createRateLimitMiddleware('uploads-image', 10, 60);
+const transcribeLimiter = createRateLimitMiddleware('transcribe', 10, 60);
 
 // GET /api/photos - List photos for the current user
 app.get('/', async (c) => {
@@ -42,9 +47,17 @@ app.get('/', async (c) => {
 });
 
 // POST /api/photos/uploads/image - Request a presigned URL for image upload
+app.use('/uploads/image', uploadsImageLimiter);
 app.post('/uploads/image', zValidator('json', z.object({ filename: z.string() })), async (c) => {
     const { userId } = c.get('auth');
     const { filename } = c.req.valid('json');
+
+    // Basic filename validation: allow common image types
+    const allowed = /\.(jpg|jpeg|png|webp)$/i.test(filename);
+    if (!allowed) {
+      return c.json({ error: 'Unsupported image type. Allowed: jpg, jpeg, png, webp' }, 400);
+    }
+
     const key = `photos/${userId}/${Date.now()}-${filename}`;
 
     const signedUrl = await c.env.PHOTOS_BUCKET.createPresignedUrl({
@@ -85,14 +98,14 @@ app.put('/:photoId/caption', zValidator('json', z.object({ caption: z.string() }
     return c.json({ success: true });
 });
 
-// POST /api/photos/:photoId/transcribe - Trigger transcription for an uploaded audio file
-app.post('/:photoId/transcribe', zValidator('json', z.object({ r2Key: z.string() })), async (c) => {
-    const photoId = c.req.param('photoId');
+// POST /api/photos/:photoId/transcribe - Enqueue transcription job for an uploaded audio file
+app.use('/:photoId/transcribe', transcribeLimiter);
+app.post('/:photoId/transcribe', zValidator('json', z.object({toId = c.req.param('photoId');
     const { r2Key } = c.req.valid('json');
-    // In a real app, this would be enqueued. For now, direct call.
-    // This assumes `transcribeAudioAndUpdatePhoto` is in `ai.ts`
-    // await transcribeAudioAndUpdatePhoto(c.env, r2Key, photoId);
-    return c.json({ message: 'Transcription process started' });
+
+    await scheduleTranscriptionJob(c.env, r2Key, photoId);
+
+    return c.json({ success: true, message: 'Transcription job enqueued' });
 });
 
 // DELETE /api/photos/:photoId - Delete a photo
