@@ -8,11 +8,11 @@ import { apiPut, apiDelete } from '@/lib/api';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import TagEditor from './TagEditor';
 import VoiceRecorder from './VoiceRecorder';
-import { useAuth } from '@clerk/nextjs';
+import { useAuthToken } from '@/lib/auth';
 
 export default function PhotoCard({ photo }: { photo: Photo }) {
   const queryClient = useQueryClient();
-  const { getToken } = useAuth();
+  const getAuthToken = useAuthToken();
   const [isEditing, setIsEditing] = useState(false);
   const [caption, setCaption] = useState(photo.transcription_text || '');
 
@@ -21,8 +21,8 @@ export default function PhotoCard({ photo }: { photo: Photo }) {
 
   const updateCaptionMutation = useMutation({
     mutationFn: async (newCaption: string) => {
-      const token = await getToken();
-      return apiPut(`/api/photos/${photo.id}/caption`, { caption: newCaption }, token || undefined);
+      const token = await getAuthToken();
+      return apiPut(`/api/photos/${photo.id}/caption`, { caption: newCaption }, token);
     },
     onSuccess: () => {
       setIsEditing(false);
@@ -35,8 +35,8 @@ export default function PhotoCard({ photo }: { photo: Photo }) {
 
   const deleteMutation = useMutation({
     mutationFn: async () => {
-      const token = await getToken();
-      return apiDelete(`/api/photos/${photo.id}`, undefined, token || undefined);
+      const token = await getAuthToken();
+      return apiDelete(`/api/photos/${photo.id}`, undefined, token);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['photos'] });

@@ -6,7 +6,7 @@ import { apiGet } from '@/lib/api';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Flame } from 'lucide-react';
-import { useAuth } from '@clerk/nextjs';
+import { useAuthToken } from '@/lib/auth';
 
 interface GamificationData {
   streak: number;
@@ -14,13 +14,13 @@ interface GamificationData {
 }
 
 export default function GamificationDashboard() {
-  const { getToken } = useAuth();
+  const getAuthToken = useAuthToken();
 
   const { data, isLoading } = useQuery<GamificationData>({
     queryKey: ['gamification'],
     queryFn: async () => {
-      const token = await getToken();
-      return apiGet('/api/gamification', token || undefined);
+      const token = await getAuthToken();
+      return apiGet('/api/gamification', token);
     },
   });
 

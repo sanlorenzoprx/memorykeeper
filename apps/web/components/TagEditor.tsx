@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiGet, apiPost, apiDelete } from '@/lib/api';
 import { Tag } from '@memorykeeper/types';
-import { useAuth } from '@clerk/nextjs';
+import { useAuthToken } from '@/lib/auth';
 
 interface TagEditorProps {
   photoId: string;
@@ -16,23 +16,23 @@ interface TagEditorProps {
 
 export default function TagEditor({ photoId, initialTags }: TagEditorProps) {
   const queryClient = useQueryClient();
-  const { getToken } = useAuth();
+  const getAuthToken = useAuthToken();
   const [newTag, setNewTag] = useState('');
   const [tags, setTags] = useState(initialTags);
 
   const { data: allTagsData } = useQuery<{ tags: Tag[] }>({
     queryKey: ['tags'],
     queryFn: async () => {
-      const token = await getToken();
-      return apiGet('/api/tags', token || undefined);
+      const token = await getAuthToken();
+      return apiGet('/api/tags', token);
     },
   });
   const allTagNames = allTagsData?.tags.map(t => t.name) || [];
 
   const addTagMutation = useMutation({
     mutationFn: async (tag: string) => {
-      const token = await getToken();
-      return apiPost(`/api/photos/${photoId}/tags`, { tags: [tag] }, token || undefined);
+      const token = await getAuthToken();
+      return apiPost(`/api/photos/${photoId}/tags`, { tags: [tag] }, token);
     },
     onSuccess: (_, newTag) => {
       if (!tags.includes(newTag)) {
@@ -46,8 +46,8 @@ export default function TagEditor({ photoId, initialTags }: TagEditorProps) {
 
   const removeTagMutation = useMutation({
     mutationFn: async (tag: string) => {
-      const token = await getToken();
-      return apiDelete(`/api/photos/${photoId}/tags`, { tags: [tag] }, token || undefined);
+      const token = await getAuthToken();
+      return apiDelete(`/api/photos/${photoId}/tags`, { tags: [tag] }, token);
     },
     onSuccess: (_, removedTag) => {
       setTags(tags.filter(t => t !== removedTag));

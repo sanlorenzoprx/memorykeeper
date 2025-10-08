@@ -9,26 +9,26 @@ import AlbumForm from '@/components/AlbumForm';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import React, { useState } from 'react';
 import Link from 'next/link';
-import { useAuth } from '@clerk/nextjs';
+import { useAuthToken } from '@/lib/auth';
 
 export default function AlbumsPage() {
   const queryClient = useQueryClient();
-  const { getToken } = useAuth();
+  const getAuthToken = useAuthToken();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingAlbum, setEditingAlbum] = useState<Album | null>(null);
 
   const { data, isLoading } = useQuery<{ albums: Album[] }>({
     queryKey: ['albums'],
     queryFn: async () => {
-      const token = await getToken();
-      return apiGet('/api/albums', token || undefined);
+      const token = await getAuthToken();
+      return apiGet('/api/albums', token);
     },
   });
 
   const createMutation = useMutation({
     mutationFn: async (data: { name: string; description?: string }) => {
-      const token = await getToken();
-      return apiPost('/api/albums', data, token || undefined);
+      const token = await getAuthToken();
+      return apiPost('/api/albums', data, token);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['albums'] });
@@ -38,8 +38,8 @@ export default function AlbumsPage() {
 
   const updateMutation = useMutation({
     mutationFn: async (data: { id: string; name: string; description?: string }) => {
-      const token = await getToken();
-      return apiPut(`/api/albums/${data.id}`, { name: data.name, description: data.description }, token || undefined);
+      const token = await getAuthToken();
+      return apiPut(`/api/albums/${data.id}`, { name: data.name, description: data.description }, token);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['albums'] });
@@ -50,8 +50,8 @@ export default function AlbumsPage() {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      const token = await getToken();
-      return apiDelete(`/api/albums/${id}`, undefined, token || undefined);
+      const token = await getAuthToken();
+      return apiDelete(`/api/albums/${id}`, undefined, token);
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['albums'] }),
   });

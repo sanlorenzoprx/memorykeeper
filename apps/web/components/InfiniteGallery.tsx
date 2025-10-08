@@ -4,16 +4,16 @@ import { useQuery } from '@tanstack/react-query';
 import { apiGet } from '@/lib/api';
 import PhotoCard from '@/components/PhotoCard';
 import { Photo } from '@memorykeeper/types';
-import { useAuth } from '@clerk/nextjs';
+import { useAuthToken } from '@/lib/auth';
 
 export default function InfiniteGallery() {
-  const { getToken } = useAuth();
+  const getAuthToken = useAuthToken();
 
   const { data, isLoading, error } = useQuery<{ photos: Photo[] }>({
     queryKey: ['photos'],
     queryFn: async () => {
-      const token = await getToken();
-      return apiGet('/api/photos', token || undefined);
+      const token = await getAuthToken();
+      return apiGet('/api/photos', token);
     },
   });
 
