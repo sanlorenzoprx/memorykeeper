@@ -3,9 +3,9 @@
   "private": true,
   "version": "1.0.0",
   "scripts": {
-    "dev:all": "concurrently \"pnpm --filter backend dev\" \"pnpm --filter memorykeeper-web dev\"",
+    "dev:all": "concurrently \\\"pnpm --filter backend dev\\\" \\\"pnpm --filter memorykeeper-web dev\\\"",
     "install:all": "pnpm -w install",
-    "build": "pnpm -w -r build",
+    "build": "pnpm -w -r --if-present build",
     "test": "pnpm -w -r test"
   },
   "devDependencies": {

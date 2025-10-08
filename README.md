@@ -1,5 +1,7 @@
 # Memorykeeper
 
+[![CI](https://github.com/OWNER/REPO/actions/workflows/ci.yml/badge.svg)](https://github.com/OWNER/REPO/actions/workflows/ci.yml)
+
 Memorykeeper — a production-ready, voice-enabled photo memory vault using Next.js (frontend) and Hono on Cloudflare Workers (backend).
 
 ## Features
@@ -27,3 +29,14 @@ Memorykeeper — a production-ready, voice-enabled photo memory vault using Next
     pnpm dev:all
     ```
 5.  Open your browser to the Next.js development server URL (usually `http://localhost:3000`).
+
+## CI: Build, Lint, and Tests
+- CI runs automatically on pushes and PRs via GitHub Actions.
+- It validates:
+  - Backend tests (Vitest)
+  - Web lint (ESLint)
+  - Web build (Next.js)
+  - Web tests (Jest + Testing Library)
+- To trigger CI, push a branch or open a PR. You can also make a small edit (like this section) and commit to kick off a run.
+
+> Note: The workspace build script uses `pnpm -w -r --if-present build` to avoid errors when some packages don't define a `build` script.
