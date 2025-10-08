@@ -1,5 +1,7 @@
 # Memorykeeper
 
+[![CI](https://github.com/sanlorenzoprx/memorykeeper/actions/workflows/ci.yml/badge.svg)](https://github.com/sanlorenzoprx/memorykeeper/actions/workflows/ci.yml)
+
 Memorykeeper — a production-ready, voice-enabled photo memory vault using Next.js (frontend) and Hono on Cloudflare Workers (backend).
 
 ## Features

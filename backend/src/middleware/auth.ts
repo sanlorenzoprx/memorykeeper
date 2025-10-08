@@ -13,14 +13,14 @@ type AuthEnv = {
     }
 }
 
-// Cache the JWKSet function at module scope so it is reused across invocations
-let jwksFetcher: ReturnType<typeof createRemoteJWKSet> | null = null;
+// Cache JWKS fetchers per-URI to support multi-tenant scenarios
+const jwksCache = new Map<string, ReturnType<typeof createRemoteJWKSet>>();
 
 function getJwksFetcher(jwksUri: string) {
-  if (!jwksFetcher) {
-    jwksFetcher = createRemoteJWKSet(new URL(jwksUri));
+  if (!jwksCache.has(jwksUri)) {
+    jwksCache.set(jwksUri, createRemoteJWKSet(new URL(jwksUri)));
   }
-  return jwksFetcher;
+  return jwksCache.get(jwksUri)!;
 }
 
 export const authMiddleware = createMiddleware<AuthEnv>(async (c, next) => {
