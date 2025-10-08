@@ -8,39 +8,56 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import React from 'react';
 import Image from 'next/image';
+import { useAuthToken } from '@/lib/auth';
 
 export default function AlbumDetailPage() {
   const { id } = useParams();
   const queryClient = useQueryClient();
+  const getAuthToken = useAuthToken();
   const publicR2Domain = process.env.NEXT_PUBLIC_R2_PUBLIC_DOMAIN || '';
 
   const { data: albumData } = useQuery<{ album: Album }>({
     queryKey: ['album', id],
-    queryFn: () => apiGet(`/api/albums/${id}`),
+    queryFn: async () => {
+      const token = await getAuthToken();
+      return apiGet(`/api/albums/${id}`, token);
+    },
     enabled: !!id,
   });
   const album = albumData?.album;
 
   const { data: photosInAlbumData } = useQuery<{ photos: Photo[] }>({
     queryKey: ['albumPhotos', id],
-    queryFn: () => apiGet(`/api/photos?albumId=${id}`),
+    queryFn: async () => {
+      const token = await getAuthToken();
+      return apiGet(`/api/photos?albumId=${id}`, token);
+    },
     enabled: !!id,
   });
   const photosInAlbum = photosInAlbumData?.photos || [];
 
   const { data: allPhotosData } = useQuery<{ photos: Photo[] }>({
     queryKey: ['photos'],
-    queryFn: () => apiGet('/api/photos'),
+    queryFn: async () => {
+      const token = await getAuthToken();
+      return apiGet('/api/photos', token);
+    },
   });
   const allPhotos = allPhotosData?.photos || [];
 
   const addPhotoMutation = useMutation({
-    mutationFn: (photoId: string) => apiPost(`/api/albums/${id}/photos`, { photoId }),
+    mutationFn: async (photoId: string) => {
+      const token = await getAuthToken();
+      return apiPost(`/api/albums/${id}/photos`, { photoId }, token);
+    },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['albumPhotos', id] }),
   });
 
   const removePhotoMutation = useMutation({
-    mutationFn: (photoId: string) => apiDelete(`/api/albums/${id}/photos/${photoId}`),
+    mutationFn: async (photoId: string) => {
+      const token = await getAuthToken();
+      return apiDelete(`/api/albums/${id}/photos/${photoId}`, undefined, token);
+    },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['albumPhotos', id] }),
   });
 
@@ -59,7 +76,7 @@ export default function AlbumDetailPage() {
           <Card key={photo.id}>
             <CardContent className="p-2">
               <div className="w-full h-40 relative mb-2">
-                <Image src={`https://${publicR2Domain}/${photo.r2_key}`} alt={photo.alt_text || 'Photo'} layout="fill" objectFit="cover" className="rounded-md" />
+                <Image src={`https://${publicR2Domain}/${photo.r2_key}`} alt={photo.alt_text || 'Photo'} fill className="rounded-md" style={{ objectFit: 'cover' }} />
               </div>
               <Button variant="destructive" size="sm" className="w-full" onClick={() => removePhotoMutation.mutate(photo.id)}>Remove</Button>
             </CardContent>
@@ -73,7 +90,7 @@ export default function AlbumDetailPage() {
           <Card key={photo.id}>
             <CardContent className="p-2">
               <div className="w-full h-40 relative mb-2">
-                <Image src={`https://${publicR2Domain}/${photo.r2_key}`} alt={photo.alt_text || 'Photo'} layout="fill" objectFit="cover" className="rounded-md" />
+                <Image src={`https://${publicR2Domain}/${photo.r2_key}`} alt={photo.alt_text || 'Photo'} fill className="rounded-md" style={{ objectFit: 'cover' }} />
               </div>
               <Button size="sm" className="w-full" onClick={() => addPhotoMutation.mutate(photo.id)}>Add to Album</Button>
             </CardContent>

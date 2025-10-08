@@ -8,9 +8,11 @@ import { apiPut, apiDelete } from '@/lib/api';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import TagEditor from './TagEditor';
 import VoiceRecorder from './VoiceRecorder';
+import { useAuthToken } from '@/lib/auth';
 
 export default function PhotoCard({ photo }: { photo: Photo }) {
   const queryClient = useQueryClient();
+  const getAuthToken = useAuthToken();
   const [isEditing, setIsEditing] = useState(false);
   const [caption, setCaption] = useState(photo.transcription_text || '');
 
@@ -18,7 +20,10 @@ export default function PhotoCard({ photo }: { photo: Photo }) {
   const r2Url = photo.r2_key.startsWith('http') ? photo.r2_key : `https://${publicR2Domain}/${photo.r2_key}`;
 
   const updateCaptionMutation = useMutation({
-    mutationFn: (newCaption: string) => apiPut(`/api/photos/${photo.id}/caption`, { caption: newCaption }),
+    mutationFn: async (newCaption: string) => {
+      const token = await getAuthToken();
+      return apiPut(`/api/photos/${photo.id}/caption`, { caption: newCaption }, token);
+    },
     onSuccess: () => {
       setIsEditing(false);
       queryClient.invalidateQueries({ queryKey: ['photos'] });
@@ -29,7 +34,10 @@ export default function PhotoCard({ photo }: { photo: Photo }) {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: () => apiDelete(`/api/photos/${photo.id}`),
+    mutationFn: async () => {
+      const token = await getAuthToken();
+      return apiDelete(`/api/photos/${photo.id}`, undefined, token);
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['photos'] });
     },
@@ -45,7 +53,7 @@ export default function PhotoCard({ photo }: { photo: Photo }) {
   return (
     <div className="border rounded-lg overflow-hidden shadow-lg transition-transform hover:scale-105">
       <div className="w-full h-48 relative">
-        <Image src={r2Url} alt={photo.alt_text || 'A memory'} layout="fill" objectFit="cover" />
+        <Image src={r2Url} alt={photo.alt_text || 'A memory'} fill style={{ objectFit: 'cover' }} />
       </div>
       <div className="p-4">
         {isEditing ? (

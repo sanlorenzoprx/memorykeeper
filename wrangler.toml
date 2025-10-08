@@ -17,7 +17,9 @@ binding = "AI"
 
 # Cron trigger for processing background jobs
 [triggers]
-crons = ["* * * * *"] # Runs every minute to process jobs quickly in dev. Change for prod.
+# Use a more conservative schedule for production. Override per-environment if needed.
+# Example: dev = every minute; prod = hourly.
+crons = ["0 * * * *"]
 
 [vars]
 # Production environment variables

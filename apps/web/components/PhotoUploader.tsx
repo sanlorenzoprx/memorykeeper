@@ -4,9 +4,11 @@ import { apiPost } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Input } from './ui/input';
 import { useQueryClient } from '@tanstack/react-query';
+import { useAuthToken } from '@/lib/auth';
 
 export default function PhotoUploader() {
   const queryClient = useQueryClient();
+  const getAuthToken = useAuthToken();
   const [file, setFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
 
@@ -23,8 +25,9 @@ export default function PhotoUploader() {
     }
     setIsUploading(true);
     try {
+      const token = await getAuthToken();
       // 1. Get a presigned URL from our backend
-      const { uploadUrl, key } = await apiPost('/api/photos/uploads/image', { filename: file.name });
+      const { uploadUrl, key } = await apiPost('/api/photos/uploads/image', { filename: file.name }, token);
 
       // 2. Upload the file directly to R2 using the presigned URL
       const uploadResponse = await fetch(uploadUrl, {
@@ -40,10 +43,10 @@ export default function PhotoUploader() {
       }
 
       // 3. Notify our backend that the upload is complete to create the photo record
-      await apiPost('/api/photos', { r2Key: key });
+      await apiPost('/api/photos', { r2Key: key }, token);
 
       // 4. Trigger gamification action for digitizing
-      await apiPost('/api/gamification/actions/digitize', {});
+      await apiPost('/api/gamification/actions/digitize', {}, token);
 
       alert('Upload successful!');
       queryClient.invalidateQueries({ queryKey: ['photos'] });

@@ -4,9 +4,11 @@ import { apiPost } from '@/lib/api';
 import { Button } from './ui/button';
 import { Mic, StopCircle } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
+import { useAuthToken } from '@/lib/auth';
 
 export default function VoiceRecorder({ photoId }: { photoId: string }) {
   const queryClient = useQueryClient();
+  const getAuthToken = useAuthToken();
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const [isRecording, setIsRecording] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -40,9 +42,10 @@ export default function VoiceRecorder({ photoId }: { photoId: string }) {
   const handleUploadAndTranscribe = async (audioBlob: Blob) => {
     setIsProcessing(true);
     try {
+      const token = await getAuthToken();
       const filename = `${photoId}-caption.webm`;
       // 1. Get presigned URL for audio upload
-      const { uploadUrl, key } = await apiPost('/api/audio/uploads', { filename });
+      const { uploadUrl, key } = await apiPost('/api/audio/uploads', { filename }, token);
 
       // 2. Upload audio blob directly to R2
       await fetch(uploadUrl, {
@@ -52,10 +55,10 @@ export default function VoiceRecorder({ photoId }: { photoId: string }) {
       });
 
       // 3. Tell backend to start transcription process
-      await apiPost(`/api/photos/${photoId}/transcribe`, { r2Key: key });
+      await apiPost(`/api/photos/${photoId}/transcribe`, { r2Key: key }, token);
 
       // 4. Trigger gamification action for captioning
-      await apiPost('/api/gamification/actions/caption', {});
+      await apiPost('/api/gamification/actions/caption', {}, token);
 
       alert('Caption submitted for transcription! It will appear shortly.');
       queryClient.invalidateQueries({ queryKey: ['photos', photoId] });

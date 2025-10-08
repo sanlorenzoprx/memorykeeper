@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { zValidator } from '@hono/zod-validator';
 import type { Env } from '../env';
 import { scheduleR2Delete } from '../utils/jobs';
+import { transcribeAudioAndUpdatePhoto } from '../services/ai';
 
 const app = new Hono<{ Bindings: Env; Variables: { auth: { userId: string } } }>();
 
@@ -89,10 +90,8 @@ app.put('/:photoId/caption', zValidator('json', z.object({ caption: z.string() }
 app.post('/:photoId/transcribe', zValidator('json', z.object({ r2Key: z.string() })), async (c) => {
     const photoId = c.req.param('photoId');
     const { r2Key } = c.req.valid('json');
-    // In a real app, this would be enqueued. For now, direct call.
-    // This assumes `transcribeAudioAndUpdatePhoto` is in `ai.ts`
-    // await transcribeAudioAndUpdatePhoto(c.env, r2Key, photoId);
-    return c.json({ message: 'Transcription process started' });
+    await transcribeAudioAndUpdatePhoto(c.env, r2Key, photoId);
+    return c.json({ message: 'Transcription started' });
 });
 
 // DELETE /api/photos/:photoId - Delete a photo
