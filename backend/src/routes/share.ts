@@ -22,6 +22,24 @@ app.get('/:token', async (c) => {
       'SELECT id, r2_key, alt_text, transcription_text, created_at FROM photos WHERE id = ?'
     ).bind(share.target_id).first();
     return c.json({ type: 'photo', data: photo });
+  } else if (share.type === 'album') {
+    const album = await c.env.DB.prepare(
+      'SELECT id, name, description, created_at FROM albums WHERE id = ?'
+    ).bind(share.target_id).first();
+
+    if (!album) {
+      return c.json({ error: 'Album not found' }, 404);
+    }
+
+    const photosRes = await c.env.DB.prepare(
+      `SELECT p.id, p.r2_key, p.alt_text, p.transcription_text, p.created_at
+       FROM photos p
+       JOIN album_photos ap ON p.id = ap.photo_id
+       WHERE ap.album_id = ?
+       ORDER BY ap.sort_order ASC`
+    ).bind(share.target_id).all();
+
+    return c.json({ type: 'album', data: { album, photos: photosRes.results || [] } });
   }
 
   return c.json({ error: 'Unsupported share type' }, 400);

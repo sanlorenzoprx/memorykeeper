@@ -8,4 +8,7 @@ export interface Env {
     CLERK_JWKS_URI: string;
     CLERK_ISSUER: string;
     AI_MODEL_WHISPER?: string;
+
+    // Non-secret configuration
+    CORS_ORIGINS?: string; // Comma-separated list of allowed origins
 }

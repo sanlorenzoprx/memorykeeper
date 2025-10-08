@@ -20,6 +20,14 @@ export default function VoiceRecorder({ photoId }: { photoId: string }) {
       recorder.ondataavailable = (e) => chunks.push(e.data);
       recorder.onstop = async () => {
         const audioBlob = new Blob(chunks, { type: 'audio/webm' });
+
+        // Basic client-side size limit (5MB) to avoid huge uploads
+        const MAX_AUDIO_BYTES = 5 * 1024 * 1024;
+        if (audioBlob.size > MAX_AUDIO_BYTES) {
+          alert('Recording is too large. Please keep voice captions under ~5MB.');
+          return;
+        }
+
         handleUploadAndTranscribe(audioBlob);
       };
 
@@ -58,6 +66,7 @@ export default function VoiceRecorder({ photoId }: { photoId: string }) {
       await apiPost('/api/gamification/actions/caption', {});
 
       alert('Caption submitted for transcription! It will appear shortly.');
+      // Invalidate and rely on gallery polling to show updated captions soon
       queryClient.invalidateQueries({ queryKey: ['photos', photoId] });
       queryClient.invalidateQueries({ queryKey: ['photos'] });
     } catch (error) {

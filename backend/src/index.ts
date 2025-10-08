@@ -12,11 +12,17 @@ import type { Env } from './env';
 
 const app = new Hono<{ Bindings: Env }>();
 
-// Apply CORS middleware to all routes
-app.use('*', cors({
-  origin: ['http://localhost:3000', 'http://localhost:3002', 'https://your-production-frontend.com'],
-  credentials: true,
-}));
+// Apply CORS middleware to all routes, reading allowed origins from environment
+app.use('*', async (c, next) => {
+  const origins = (c.env.CORS_ORIGINS || 'http://localhost:3000,http://localhost:3002')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+  return cors({
+    origin: origins,
+    credentials: true,
+  })(c, next);
+});
 
 app.get('/', (c) => {
   return c.json({
@@ -45,13 +51,14 @@ export default {
   async scheduled(controller: ScheduledController, env: Env, ctx: ExecutionContext) {
     // Process up to 20 pending jobs per cron run
     const { results } = await env.DB.prepare(
-        "SELECT id, kind, payload FROM jobs WHERE status = 'pending' ORDER BY created_at ASC LIMIT 20"
+        "SELECT id, kind, payload, attempts FROM jobs WHERE status = 'pending' ORDER BY created_at ASC LIMIT 20"
     ).all();
 
     for (const job of results || []) {
       const id = job.id as number;
       const kind = job.kind as string;
       const payload = JSON.parse(job.payload as string);
+      const attempts = Number((job as any).attempts ?? 0);
 
       try {
         if (kind === 'r2-delete') {
@@ -64,7 +71,16 @@ export default {
         await env.DB.prepare("UPDATE jobs SET status = 'done' WHERE id = ?").bind(id).run();
       } catch (e) {
         console.error(`Job ${id} of kind ${kind} failed:`, e);
-        await env.DB.prepare("UPDATE jobs SET status = 'failed' WHERE id = ?").bind(id).run();
+        // Simple retry policy for transcription jobs: up to 3 attempts
+        if (kind === 'transcribe' && attempts < 3) {
+          await env.DB.prepare("UPDATE jobs SET attempts = attempts + 1, last_error = ? WHERE id = ?")
+            .bind(String(e), id)
+            .run();
+        } else {
+          await env.DB.prepare("UPDATE jobs SET status = 'failed', last_error = ? WHERE id = ?")
+            .bind(String(e), id)
+            .run();
+        }
       }
     }
   }
