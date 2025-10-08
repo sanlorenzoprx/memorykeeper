@@ -3,10 +3,11 @@
   "private": true,
   "version": "1.0.0",
   "scripts": {
-    "dev:all": "concurrently \"pnpm --filter backend dev\" \"pnpm --filter memorykeeper-web dev\"",
+    "dev:all": "concurrently \\\"pnpm --filter backend dev\\\" \\\"pnpm --filter memorykeeper-web dev\\\"",
     "install:all": "pnpm -w install",
     "build": "pnpm -w -r build",
-    "test": "pnpm -w -r test"
+    "test": "pnpm -w -r test",
+    "db:migrate": "node scripts/migrate.js"
   },
   "devDependencies": {
     "concurrently": "^8.2.2",

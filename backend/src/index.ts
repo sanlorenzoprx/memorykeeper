@@ -6,6 +6,7 @@ import audio from './routes/audio';
 import albums from './routes/albums';
 import share from './routes/share';
 import gamification from './routes/gamification';
+import jobs from './routes/jobs';
 import { performR2Delete } from './utils/jobs';
 import { transcribeAudioAndUpdatePhoto } from './services/ai';
 import type { Env } from './env';
@@ -44,14 +45,19 @@ app.route('/api/audio', audio);
 app.route('/api/albums', albums);
 app.route('/api/gamification', gamification);
 app.route('/api/tags', photos); // Re-exporting for /api/tags
+app.route('/api/jobs', jobs);
 
 export default {
   fetch: app.fetch,
 
   async scheduled(controller: ScheduledController, env: Env, ctx: ExecutionContext) {
-    // Process up to 20 pending jobs per cron run
+    // Process up to 20 eligible pending jobs per cron run
     const { results } = await env.DB.prepare(
-        "SELECT id, kind, payload, attempts FROM jobs WHERE status = 'pending' ORDER BY created_at ASC LIMIT 20"
+      `SELECT id, kind, payload, attempts, max_attempts, next_run_at
+       FROM jobs
+       WHERE status = 'pending' AND (next_run_at IS NULL OR next_run_at <= CURRENT_TIMESTAMP)
+       ORDER BY created_at ASC
+       LIMIT 20`
     ).all();
 
     for (const job of results || []) {
@@ -59,6 +65,7 @@ export default {
       const kind = job.kind as string;
       const payload = JSON.parse(job.payload as string);
       const attempts = Number((job as any).attempts ?? 0);
+      const maxAttempts = Number((job as any).max_attempts ?? 3);
 
       try {
         if (kind === 'r2-delete') {
@@ -71,14 +78,30 @@ export default {
         await env.DB.prepare("UPDATE jobs SET status = 'done' WHERE id = ?").bind(id).run();
       } catch (e) {
         console.error(`Job ${id} of kind ${kind} failed:`, e);
-        // Simple retry policy for transcription jobs: up to 3 attempts
-        if (kind === 'transcribe' && attempts < 3) {
-          await env.DB.prepare("UPDATE jobs SET attempts = attempts + 1, last_error = ? WHERE id = ?")
-            .bind(String(e), id)
+        const errMsg = String((e as any)?.message || e);
+
+        const isNonRetryable =
+          errMsg.toLowerCase().includes('not found') ||
+          errMsg.toLowerCase().includes('invalid');
+
+        const newAttempts = attempts + 1;
+
+        if (isNonRetryable || newAttempts >= maxAttempts) {
+          await env.DB.prepare("UPDATE jobs SET status = 'failed', attempts = ?, last_error = ? WHERE id = ?")
+            .bind(newAttempts, String(e), id)
             .run();
         } else {
-          await env.DB.prepare("UPDATE jobs SET status = 'failed', last_error = ? WHERE id = ?")
-            .bind(String(e), id)
+          // Exponential backoff with jitter
+          const base = 10; // seconds
+          const cap = 600; // seconds
+          const jitter = 0.85 + Math.random() * 0.3;
+          const delaySec = Math.min(base * Math.pow(2, newAttempts), cap) * jitter;
+          const nextRunISO = new Date(Date.now() + delaySec * 1000).toISOString();
+
+          await env.DB.prepare(
+            "UPDATE jobs SET attempts = ?, last_error = ?, next_run_at = ? WHERE id = ?"
+          )
+            .bind(newAttempts, String(e), nextRunISO, id)
             .run();
         }
       }
