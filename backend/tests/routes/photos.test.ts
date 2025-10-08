@@ -1,37 +1,46 @@
-import { describe, test, expect, vi } from 'vitest';
+import { describe, test, expect, vi, beforeEach } from 'vitest';
 import { Hono } from 'hono';
 import photos from '../../src/routes/photos';
 import type { Env } from '../../src/env';
 
 // Mock env for tests
-const mockEnv: Env = {
-  DB: {
-    prepare: vi.fn().mockReturnValue({
-      bind: vi.fn().mockReturnThis(),
-      all: vi.fn().mockResolvedValue({ results: [] }),
-      first: vi.fn().mockResolvedValue(null),
-      run: vi.fn().mockResolvedValue({ success: true }),
-    }),
-    transaction: vi.fn().mockImplementation(async (fn) => await fn(mockEnv.DB)),
-  } as any,
-  PHOTOS_BUCKET: {
-    createPresignedUrl: vi.fn().mockResolvedValue('mock-url'),
-    get: vi.fn().mockResolvedValue(null),
-    delete: vi.fn().mockResolvedValue(undefined),
-  } as any,
-  AI_MODEL_WHISPER: '@cf/openai/whisper',
-  AI: { run: vi.fn() } as any,
-  CLERK_JWKS_URI: 'mock',
-  CLERK_ISSUER: 'mock',
-};
+let mockEnv: Env;
+let app: Hono<{ Bindings: Env }>;
 
-const app = new Hono<{ Bindings: Env }>();
-// Mock auth middleware for tests
-app.use('/api/*', (c, next) => {
-    c.set('auth', { userId: 'test-user' });
-    return next();
+beforeEach(() => {
+  const prepareMock = vi.fn().mockReturnValue({
+    bind: vi.fn().mockReturnThis(),
+    all: vi.fn().mockResolvedValue({ results: [] }),
+    first: vi.fn().mockResolvedValue(null),
+    run: vi.fn().mockResolvedValue({ success: true }),
+  });
+
+  mockEnv = {
+    DB: {
+      prepare: prepareMock,
+      transaction: vi.fn().mockImplementation(async (fn) => await fn({
+        prepare: prepareMock
+      } as any)),
+    } as any,
+    PHOTOS_BUCKET: {
+      createPresignedUrl: vi.fn().mockResolvedValue('mock-url'),
+      get: vi.fn().mockResolvedValue(null),
+      delete: vi.fn().mockResolvedValue(undefined),
+    } as any,
+    AI_MODEL_WHISPER: '@cf/openai/whisper',
+    AI: { run: vi.fn() } as any,
+    CLERK_JWKS_URI: 'mock',
+    CLERK_ISSUER: 'mock',
+  };
+
+  app = new Hono<{ Bindings: Env }>();
+  // Mock auth middleware for tests
+  app.use('/api/*', (c, next) => {
+      c.set('auth', { userId: 'test-user' });
+      return next();
+  });
+  app.route('/api/photos', photos);
 });
-app.route('/api/photos', photos);
 
 describe('Photos Routes', () => {
   test('GET /api/photos - Lists photos', async () => {
@@ -71,5 +80,28 @@ describe('Photos Routes', () => {
     const res = await app.request('/api/photos/mock-id', { method: 'DELETE' }, mockEnv);
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ success: true });
+  });
+
+  test('POST /api/photos/:photoId/tags - batches inserts', async () => {
+    // photo ownership check returns a row
+    (mockEnv.DB.prepare as any).mockReturnValueOnce({
+      bind: vi.fn().mockReturnThis(),
+      first: vi.fn().mockResolvedValue({ id: 'p1' }),
+    });
+
+    const req = new Request('http://localhost/api/photos/p1/tags', {
+      method: 'POST',
+      body: JSON.stringify({ tags: ['t1', 't2', 't3'] }),
+      headers: { 'Content-Type': 'application/json' },
+    });
+    const res = await app.request(req, {}, mockEnv);
+    expect(res.status).toBe(200);
+
+    // Check that an INSERT with multiple VALUES was prepared
+    const calls = (mockEnv.DB.prepare as any).mock.calls.map((c: any) => c[0] as string);
+    const hasBatchInsert = calls.some((sql: string) =>
+      sql.startsWith('INSERT OR IGNORE INTO tags (name) VALUES') && sql.includes('(?)') && sql.split('(?)').length > 2
+    );
+    expect(hasBatchInsert).toBe(true);
   });
 });
