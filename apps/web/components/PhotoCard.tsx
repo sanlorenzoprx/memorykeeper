@@ -13,6 +13,7 @@ export default function PhotoCard({ photo }: { photo: Photo }) {
   const queryClient = useQueryClient();
   const [isEditing, setIsEditing] = useState(false);
   const [caption, setCaption] = useState(photo.transcription_text || '');
+  const [isImageLoaded, setIsImageLoaded] = useState(false);
 
   const publicR2Domain = process.env.NEXT_PUBLIC_R2_PUBLIC_DOMAIN || '';
   const r2Url = photo.r2_key.startsWith('http') ? photo.r2_key : `https://${publicR2Domain}/${photo.r2_key}`;
@@ -23,8 +24,8 @@ export default function PhotoCard({ photo }: { photo: Photo }) {
       setIsEditing(false);
       queryClient.invalidateQueries({ queryKey: ['photos'] });
     },
-    onError: (error) => {
-        alert(`Failed to update caption: ${error.message}`);
+    onError: (error: any) => {
+        alert(`Failed to update caption: ${error?.message || 'Unknown error'}`);
     }
   });
 
@@ -33,8 +34,8 @@ export default function PhotoCard({ photo }: { photo: Photo }) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['photos'] });
     },
-    onError: (error) => {
-      alert(`Failed to delete photo: ${error.message}`);
+    onError: (error: any) => {
+      alert(`Failed to delete photo: ${error?.message || 'Unknown error'}`);
     }
   });
 
@@ -45,7 +46,16 @@ export default function PhotoCard({ photo }: { photo: Photo }) {
   return (
     <div className="border rounded-lg overflow-hidden shadow-lg transition-transform hover:scale-105">
       <div className="w-full h-48 relative">
-        <Image src={r2Url} alt={photo.alt_text || 'A memory'} layout="fill" objectFit="cover" />
+        {!isImageLoaded && (
+          <div className="absolute inset-0 animate-pulse bg-muted" aria-hidden="true" />
+        )}
+        <Image
+          src={r2Url}
+          alt={photo.alt_text || 'A memory'}
+          fill
+          sizes="(max-width: 768px) 100vw, 33vw"
+          onLoadingComplete={() => setIsImageLoaded(true)}
+        />
       </div>
       <div className="p-4">
         {isEditing ? (
@@ -59,7 +69,9 @@ export default function PhotoCard({ photo }: { photo: Photo }) {
               <Button onClick={handleSave} size="sm" disabled={updateCaptionMutation.isPending}>
                 {updateCaptionMutation.isPending ? 'Saving...' : 'Save'}
               </Button>
-              <Button onClick={() => setIsEditing(false)} size="sm" variant="ghost">Cancel</Button>
+              <Button onClick={() => setIsEditing(false)} size="sm" variant="ghost" disabled={updateCaptionMutation.isPending}>
+                Cancel
+              </Button>
             </div>
           </div>
         ) : (
@@ -76,8 +88,14 @@ export default function PhotoCard({ photo }: { photo: Photo }) {
           </div>
         )}
         <TagEditor photoId={photo.id} initialTags={photo.tags || []} />
-        <Button variant="destructive" size="sm" className="mt-4 w-full" onClick={() => deleteMutation.mutate()}>
-          Delete Photo
+        <Button
+          variant="destructive"
+          size="sm"
+          className="mt-4 w-full"
+          onClick={() => deleteMutation.mutate()}
+          disabled={deleteMutation.isPending}
+        >
+          {deleteMutation.isPending ? 'Deleting...' : 'Delete Photo'}
         </Button>
       </div>
     </div>

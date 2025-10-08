@@ -58,7 +58,13 @@ export default function TagEditor({ photoId, initialTags }: TagEditorProps) {
         {tags.map((tag) => (
           <Badge key={tag} variant="secondary">
             {tag}
-            <button className="ml-1 font-bold" onClick={() => removeTagMutation.mutate(tag)}>×</button>
+            <button
+              className="ml-1 font-bold"
+              onClick={() => removeTagMutation.mutate(tag)}
+              aria-label={`Remove ${tag} tag`}
+            >
+              ×
+            </button>
           </Badge>
         ))}
       </div>

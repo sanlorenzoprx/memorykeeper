@@ -1,4 +1,6 @@
 -- Drop tables if they exist to ensure a clean slate
+DROP TABLE IF EXISTS transcription_usage;
+DROP TABLE IF EXISTS user_plans;
 DROP TABLE IF EXISTS shares;
 DROP TABLE IF EXISTS user_achievements;
 DROP TABLE IF EXISTS achievements;
@@ -93,6 +95,13 @@ CREATE TABLE user_streaks (
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
+CREATE TABLE user_plans (
+  user_id TEXT PRIMARY KEY,
+  plan_tier TEXT NOT NULL DEFAULT 'free', -- 'free' or 'pro'
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
 CREATE TABLE shares (
   id TEXT PRIMARY KEY,
   owner_id TEXT NOT NULL,
@@ -100,7 +109,20 @@ CREATE TABLE shares (
   target_id TEXT NOT NULL,
   share_token TEXT UNIQUE NOT NULL,
   created_at TEXT NOT NULL,
+  expires_at TEXT, -- optional expiration
   FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE transcription_usage (
+  id TEXT PRIMARY KEY,
+  user_id TEXT, -- optional; inferred via photo owner when available
+  photo_id TEXT NOT NULL,
+  audio_duration_seconds INTEGER NOT NULL,
+  transcription_length_chars INTEGER NOT NULL,
+  processing_time_ms INTEGER NOT NULL,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  FOREIGN KEY (photo_id) REFERENCES photos(id) ON DELETE CASCADE
 );
 
 CREATE TABLE jobs (

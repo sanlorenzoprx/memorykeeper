@@ -9,7 +9,14 @@ const app = new Hono<{ Bindings: Env; Variables: { auth: { userId: string } } }>
 // GET /api/photos - List photos for the current user
 app.get('/', async (c) => {
   const { userId } = c.get('auth');
-  const { limit = 30, offset = 0, albumId } = c.req.query();
+
+  // Validate and normalize query params
+  const schema = z.object({
+    limit: z.coerce.number().int().min(1).max(100).default(30),
+    offset: z.coerce.number().int().min(0).default(0),
+    albumId: z.string().optional(),
+  });
+  const { limit, offset, albumId } = schema.parse(c.req.query());
 
   let query: D1PreparedStatement;
   if (albumId) {
@@ -22,7 +29,7 @@ app.get('/', async (c) => {
        WHERE p.owner_id = ? AND ap.album_id = ?
        GROUP BY p.id
        ORDER BY p.created_at DESC LIMIT ? OFFSET ?`
-    ).bind(userId, albumId, Number(limit), Number(offset));
+    ).bind(userId, albumId, limit, offset);
   } else {
     query = c.env.DB.prepare(
       `SELECT p.id, p.r2_key, p.alt_text, p.transcription_text, p.created_at, GROUP_CONCAT(t.name) as tags
@@ -32,11 +39,14 @@ app.get('/', async (c) => {
        WHERE p.owner_id = ?
        GROUP BY p.id
        ORDER BY p.created_at DESC LIMIT ? OFFSET ?`
-    ).bind(userId, Number(limit), Number(offset));
+    ).bind(userId, limit, offset);
   }
 
   const { results } = await query.all();
-  const photos = (results || []).map(p => ({ ...p, tags: p.tags ? (p.tags as string).split(',') : [] }));
+  const photos = (results || []).map((p: any) => ({
+    ...p,
+    tags: typeof p.tags === 'string' && p.tags.length > 0 ? p.tags.split(',') : [],
+  }));
 
   return c.json({ photos });
 });
@@ -90,7 +100,6 @@ app.post('/:photoId/transcribe', zValidator('json', z.object({ r2Key: z.string()
     const photoId = c.req.param('photoId');
     const { r2Key } = c.req.valid('json');
     // In a real app, this would be enqueued. For now, direct call.
-    // This assumes `transcribeAudioAndUpdatePhoto` is in `ai.ts`
     // await transcribeAudioAndUpdatePhoto(c.env, r2Key, photoId);
     return c.json({ message: 'Transcription process started' });
 });
@@ -114,8 +123,9 @@ app.delete('/:photoId', async (c) => {
     ).bind(photoId, userId).run();
 
     // Schedule R2 object deletion as a background job for reliability
-    if (photo.r2_key) {
-        await scheduleR2Delete(c.env, photo.r2_key);
+    const r2Key = photo.r2_key;
+    if (typeof r2Key === 'string' && r2Key.length > 0) {
+        await scheduleR2Delete(c.env, r2Key);
     }
 
     return c.json({ success: true });
@@ -137,11 +147,17 @@ app.post('/:photoId/tags', zValidator('json', z.object({ tags: z.array(z.string(
     if (!photo) return c.json({ error: 'Photo not found' }, 404);
 
     await c.env.DB.transaction(async (tx) => {
-        for (const tagName of tags) {
-            await tx.prepare('INSERT OR IGNORE INTO tags (name) VALUES (?)').bind(tagName).run();
-            const tag = await tx.prepare('SELECT id FROM tags WHERE name = ?').bind(tagName).first<{ id: number }>();
-            if (tag) {
-                await tx.prepare('INSERT OR IGNORE INTO photo_tags (photo_id, tag_id) VALUES (?, ?)').bind(photoId, tag.id).run();
+        if (tags.length > 0) {
+            const placeholders = tags.map(() => '(?)').join(',');
+            await tx.prepare(`INSERT OR IGNORE INTO tags (name) VALUES ${placeholders}`).bind(...tags).run();
+
+            const inPlaceholders = tags.map(() => '?').join(',');
+            const { results } = await tx.prepare(`SELECT id, name FROM tags WHERE name IN (${inPlaceholders})`).bind(...tags).all<{ id: number; name: string }>();
+            const tagIds = (results || []).map(r => r.id);
+
+            if (tagIds.length > 0) {
+                const tuples = tagIds.map(() => '(?, ?)').join(',');
+                await tx.prepare(`INSERT OR IGNORE INTO photo_tags (photo_id, tag_id) VALUES ${tuples}`).bind(...tagIds.flatMap(id => [photoId, id])).run();
             }
         }
     });
@@ -161,7 +177,7 @@ app.delete('/:photoId/tags', zValidator('json', z.object({ tags: z.array(z.strin
     const placeholders = tags.map(() => '?').join(',');
     const tagIdsQuery = `SELECT id FROM tags WHERE name IN (${placeholders})`;
     const tagIdsResult = await c.env.DB.prepare(tagIdsQuery).bind(...tags).all<{ id: number }>();
-    const tagIds = tagIdsResult.results.map(r => r.id);
+    const tagIds = (tagIdsResult.results || []).map(r => r.id);
 
     if (tagIds.length > 0) {
         const deletePlaceholders = tagIds.map(() => '?').join(',');
