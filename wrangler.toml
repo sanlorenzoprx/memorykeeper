@@ -15,6 +15,11 @@ bucket_name = "memorykeeper-photos"
 [ai]
 binding = "AI"
 
+# Analytics Engine dataset for error tracking / metrics
+[[analytics_engine_datasets]]
+binding = "ANALYTICS"
+dataset = "memorykeeper_metrics"
+
 # Cron trigger for processing background jobs
 [triggers]
 crons = ["* * * * *"] # Runs every minute to process jobs quickly in dev. Change for prod.

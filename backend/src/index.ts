@@ -68,6 +68,8 @@ export default {
       const maxAttempts = Number((job as any).max_attempts ?? 3);
 
       try {
+        env.ANALYTICS?.writeDataPoint({ blobs: [`job:${kind}`, 'start'], doubles: [Number(id), attempts] });
+
         if (kind === 'r2-delete') {
           await performR2Delete(env, payload.r2Key);
         } else if (kind === 'transcribe') {
@@ -76,6 +78,7 @@ export default {
         // Add other job kinds here, e.g., 'ai-enhance'
 
         await env.DB.prepare("UPDATE jobs SET status = 'done' WHERE id = ?").bind(id).run();
+        env.ANALYTICS?.writeDataPoint({ blobs: [`job:${kind}`, 'done'], doubles: [Number(id), attempts] });
       } catch (e) {
         console.error(`Job ${id} of kind ${kind} failed:`, e);
         const errMsg = String((e as any)?.message || e);
@@ -90,6 +93,7 @@ export default {
           await env.DB.prepare("UPDATE jobs SET status = 'failed', attempts = ?, last_error = ? WHERE id = ?")
             .bind(newAttempts, String(e), id)
             .run();
+          env.ANALYTICS?.writeDataPoint({ blobs: [`job:${kind}`, 'failed'], doubles: [Number(id), newAttempts] });
         } else {
           // Exponential backoff with jitter
           const base = 10; // seconds
@@ -104,6 +108,7 @@ export default {
           )
             .bind(newAttempts, String(e), nextRunISO, id)
             .run();
+          env.ANALYTICS?.writeDataPoint({ blobs: [`job:${kind}`, 'retry'], doubles: [Number(id), newAttempts] });
         }
       }
     }

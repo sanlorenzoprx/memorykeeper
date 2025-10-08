@@ -3,6 +3,7 @@ export interface Env {
     DB: D1Database;
     PHOTOS_BUCKET: R2Bucket;
     AI: any; // The AI binding
+    ANALYTICS?: any; // Cloudflare Analytics Engine dataset binding
 
     // Secrets (set via `wrangler secret put` or in .dev.vars for local)
     CLERK_JWKS_URI: string;
