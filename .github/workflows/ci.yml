@@ -27,6 +27,7 @@ jobs:
       - name: Install dependencies
         run: pnpm install --prefer-frozen-lockfile
 
+      # Backend: run tests (Vitest) - no lint/build scripts defined
       - name: Backend tests
         working-directory: backend
         env:
@@ -35,6 +36,17 @@ jobs:
           CLERK_ISSUER: "https://example.com"
         run: pnpm test -- --run
 
+      # Web: lint
+      - name: Web lint
+        working-directory: apps/web
+        run: pnpm lint
+
+      # Web: build
+      - name: Web build
+        working-directory: apps/web
+        run: pnpm build
+
+      # Web: tests
       - name: Web tests
         working-directory: apps/web
         run: pnpm test -- --passWithNoTests
