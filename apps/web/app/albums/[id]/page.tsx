@@ -59,7 +59,7 @@ export default function AlbumDetailPage() {
           <Card key={photo.id}>
             <CardContent className="p-2">
               <div className="w-full h-40 relative mb-2">
-                <Image src={`https://${publicR2Domain}/${photo.r2_key}`} alt={photo.alt_text || 'Photo'} layout="fill" objectFit="cover" className="rounded-md" />
+                <Image src={`https://${publicR2Domain}/${photo.r2_key}`} alt={photo.alt_text || 'Photo'} fill className="rounded-md" style={{ objectFit: 'cover' }} />
               </div>
               <Button variant="destructive" size="sm" className="w-full" onClick={() => removePhotoMutation.mutate(photo.id)}>Remove</Button>
             </CardContent>
@@ -73,7 +73,7 @@ export default function AlbumDetailPage() {
           <Card key={photo.id}>
             <CardContent className="p-2">
               <div className="w-full h-40 relative mb-2">
-                <Image src={`https://${publicR2Domain}/${photo.r2_key}`} alt={photo.alt_text || 'Photo'} layout="fill" objectFit="cover" className="rounded-md" />
+                <Image src={`https://${publicR2Domain}/${photo.r2_key}`} alt={photo.alt_text || 'Photo'} fill className="rounded-md" style={{ objectFit: 'cover' }} />
               </div>
               <Button size="sm" className="w-full" onClick={() => addPhotoMutation.mutate(photo.id)}>Add to Album</Button>
             </CardContent>

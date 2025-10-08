@@ -1,12 +1,6 @@
-import { Hono } from 'hono';
-
 const base = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8787';
 
-async function fetchWithAuth(path: string, options: RequestInit = {}) {
-    // In a real app, you would get the token from Clerk's useAuth() hook
-    // For simplicity, we are assuming a token is available or not required for GET
-    const token = 'your-clerk-jwt'; // Replace with actual token retrieval
-
+async function fetchWithAuth(path: string, options: RequestInit = {}, token?: string) {
     const headers = new Headers(options.headers);
     if (token) {
         headers.set('Authorization', `Bearer ${token}`);
@@ -28,19 +22,19 @@ async function fetchWithAuth(path: string, options: RequestInit = {}) {
     return res.json();
 }
 
-export const apiGet = (path: string) => fetchWithAuth(path);
+export const apiGet = (path: string, token?: string) => fetchWithAuth(path, {}, token);
 
-export const apiPost = (path:string, body: any) => fetchWithAuth(path, {
+export const apiPost = (path:string, body: any, token?: string) => fetchWithAuth(path, {
     method: 'POST',
     body: JSON.stringify(body),
-});
+}, token);
 
-export const apiPut = (path:string, body: any) => fetchWithAuth(path, {
+export const apiPut = (path:string, body: any, token?: string) => fetchWithAuth(path, {
     method: 'PUT',
     body: JSON.stringify(body),
-});
+}, token);
 
-export const apiDelete = (path:string, body?: any) => fetchWithAuth(path, {
+export const apiDelete = (path:string, body?: any, token?: string) => fetchWithAuth(path, {
     method: 'DELETE',
     ...(body && { body: JSON.stringify(body) }),
-});
+}, token);
