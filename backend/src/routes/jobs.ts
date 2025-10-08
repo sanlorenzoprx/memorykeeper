@@ -1,10 +1,15 @@
 import { Hono } from 'hono';
 import type { Env } from '../env';
 
-const app = new Hono<{ Bindings: Env; Variables: { auth: { userId: string } } }>();
+const app = new Hono<{ Bindings: Env; Variables: { auth: { userId: string; isAdmin?: boolean } } }>();
 
 // GET /api/jobs - Inspect job statuses
 app.get('/', async (c) => {
+  const auth = c.get('auth');
+  if (!auth?.isAdmin) {
+    return c.json({ error: 'Forbidden: Admins only' }, 403);
+  }
+
   const { status, limit = '50' } = c.req.query();
   const lim = Math.max(1, Math.min(Number(limit) || 50, 200));
 
@@ -29,6 +34,11 @@ app.get('/', async (c) => {
 
 // GET /api/jobs/stats - Aggregate counts by status and kind
 app.get('/stats', async (c) => {
+  const auth = c.get('auth');
+  if (!auth?.isAdmin) {
+    return c.json({ error: 'Forbidden: Admins only' }, 403);
+  }
+
   const { results } = await c.env.DB.prepare(`
     SELECT status, kind, COUNT(*) as count
     FROM jobs

@@ -11,4 +11,5 @@ export interface Env {
 
     // Non-secret configuration
     CORS_ORIGINS?: string; // Comma-separated list of allowed origins
+    ADMIN_USER_IDS?: string; // Comma-separated list of admin user IDs (fallback if roles not present)
 }

@@ -17,7 +17,7 @@ const mockEnv: Env = {
 const app = new Hono<{ Bindings: Env }>();
 // Mock auth context
 app.use('/api/*', (c, next) => {
-  c.set('auth', { userId: 'test-user' });
+  c.set('auth', { userId: 'test-user', isAdmin: true });
   return next();
 });
 app.route('/api/jobs', jobs);
@@ -66,5 +66,17 @@ describe('Jobs Admin Routes', () => {
     const json = await res.json();
     expect(Array.isArray(json.stats)).toBe(true);
     expect(json.stats[0]).toHaveProperty('status', 'pending');
+  });
+
+  test('GET /api/jobs - forbidden if not admin', async () => {
+    const app2 = new Hono<{ Bindings: Env }>();
+    app2.use('/api/*', (c, next) => {
+      c.set('auth', { userId: 'test-user', isAdmin: false });
+      return next();
+    });
+    app2.route('/api/jobs', jobs);
+
+    const res = await app2.request('/api/jobs', {}, mockEnv);
+    expect(res.status).toBe(403);
   });
 });

@@ -97,6 +97,7 @@ export default {
           const jitter = 0.85 + Math.random() * 0.3;
           const delaySec = Math.min(base * Math.pow(2, newAttempts), cap) * jitter;
           const nextRunISO = new Date(Date.now() + delaySec * 1000).toISOString();
+          console.log(`Retrying job ${id} in ~${Math.round(delaySec)}s (attempt ${newAttempts}/${maxAttempts})`);
 
           await env.DB.prepare(
             "UPDATE jobs SET attempts = ?, last_error = ?, next_run_at = ? WHERE id = ?"

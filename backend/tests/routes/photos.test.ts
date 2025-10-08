@@ -51,6 +51,18 @@ describe('Photos Routes', () => {
     expect(await res.json()).toHaveProperty('uploadUrl', 'mock-url');
   });
 
+  test('POST /api/photos/uploads/image - rejects invalid extension', async () => {
+    const req = new Request('http://localhost/api/photos/uploads/image', {
+      method: 'POST',
+      body: JSON.stringify({ filename: 'malware.exe' }),
+      headers: { 'Content-Type': 'application/json' },
+    });
+    const res = await app.request(req, {}, mockEnv);
+    expect(res.status).toBe(400);
+    const json = await res.json();
+    expect(json).toHaveProperty('error');
+  });
+
   test('DELETE /api/photos/:photoId - Deletes photo and schedules R2 job', async () => {
     // Mock finding the photo to delete
     (mockEnv.DB.prepare as any).mockReturnValueOnce({
