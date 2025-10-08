@@ -8,39 +8,56 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import React from 'react';
 import Image from 'next/image';
+import { useAuth } from '@clerk/nextjs';
 
 export default function AlbumDetailPage() {
   const { id } = useParams();
   const queryClient = useQueryClient();
+  const { getToken } = useAuth();
   const publicR2Domain = process.env.NEXT_PUBLIC_R2_PUBLIC_DOMAIN || '';
 
   const { data: albumData } = useQuery<{ album: Album }>({
     queryKey: ['album', id],
-    queryFn: () => apiGet(`/api/albums/${id}`),
+    queryFn: async () => {
+      const token = await getToken();
+      return apiGet(`/api/albums/${id}`, token || undefined);
+    },
     enabled: !!id,
   });
   const album = albumData?.album;
 
   const { data: photosInAlbumData } = useQuery<{ photos: Photo[] }>({
     queryKey: ['albumPhotos', id],
-    queryFn: () => apiGet(`/api/photos?albumId=${id}`),
+    queryFn: async () => {
+      const token = await getToken();
+      return apiGet(`/api/photos?albumId=${id}`, token || undefined);
+    },
     enabled: !!id,
   });
   const photosInAlbum = photosInAlbumData?.photos || [];
 
   const { data: allPhotosData } = useQuery<{ photos: Photo[] }>({
     queryKey: ['photos'],
-    queryFn: () => apiGet('/api/photos'),
+    queryFn: async () => {
+      const token = await getToken();
+      return apiGet('/api/photos', token || undefined);
+    },
   });
   const allPhotos = allPhotosData?.photos || [];
 
   const addPhotoMutation = useMutation({
-    mutationFn: (photoId: string) => apiPost(`/api/albums/${id}/photos`, { photoId }),
+    mutationFn: async (photoId: string) => {
+      const token = await getToken();
+      return apiPost(`/api/albums/${id}/photos`, { photoId }, token || undefined);
+    },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['albumPhotos', id] }),
   });
 
   const removePhotoMutation = useMutation({
-    mutationFn: (photoId: string) => apiDelete(`/api/albums/${id}/photos/${photoId}`),
+    mutationFn: async (photoId: string) => {
+      const token = await getToken();
+      return apiDelete(`/api/albums/${id}/photos/${photoId}`, undefined, token || undefined);
+    },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['albumPhotos', id] }),
   });
 
