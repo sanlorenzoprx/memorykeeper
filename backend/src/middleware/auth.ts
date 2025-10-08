@@ -47,7 +47,7 @@ export const authMiddleware = createMiddleware<AuthEnv>(async (c, next) => {
         });
 
         const userId = payload.sub;
-        if (!userId) {
+        if (typeof userId !== 'string' || userId.length === 0) {
             return c.json({ error: 'Unauthorized: Invalid token payload' }, 401);
         }
 
