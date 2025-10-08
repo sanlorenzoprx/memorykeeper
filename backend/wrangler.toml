@@ -1,3 +1,0 @@
-[vars]
-CLERK_SECRET_KEY = "your-clerk-secret-key"
-AUTH_SECRET = "your-auth-secret"
