@@ -1,3 +1,4 @@
-[vars]
-CLERK_SECRET_KEY = "your-clerk-secret-key"
-AUTH_SECRET = "your-auth-secret"
+# Environment variables should be set via:
+# 1. wrangler secret put CLERK_SECRET_KEY
+# 2. wrangler secret put AUTH_SECRET
+# 3. Or in .dev.vars for local development

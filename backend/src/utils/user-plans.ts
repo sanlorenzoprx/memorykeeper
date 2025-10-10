@@ -1,13 +1,15 @@
 import type { Env } from '../env';
+import type { TranscriptionLimitCheck, TranscriptionError } from '@memorykeeper/types';
+import { PLAN_LIMITS } from '../constants';
 
-export async function checkTranscriptionLimit(env: Env, userId: string, duration: number) {
+export async function checkTranscriptionLimit(env: Env, userId: string, duration: number): Promise<TranscriptionLimitCheck> {
   // Get user's plan tier (default to 'free')
   const plan = await env.DB.prepare(
     'SELECT plan_tier FROM user_plans WHERE user_id = ?'
   ).bind(userId).first<{ plan_tier: string }>();
 
   const tier = plan?.plan_tier || 'free';
-  const totalLimit = tier === 'pro' ? 3600 * 5 : 30 * 60; // 5 hours for pro, 30 min for free (in seconds)
+  const totalLimit = tier === 'pro' ? PLAN_LIMITS.PRO : PLAN_LIMITS.FREE;
 
   // Calculate start and end of current week (Sunday to Sunday)
   const now = new Date();
@@ -27,7 +29,7 @@ export async function checkTranscriptionLimit(env: Env, userId: string, duration
   const canTranscribe = remainingSeconds >= duration;
 
   if (!canTranscribe) {
-    const error: any = new Error(`Transcription limit exceeded. You have ${Math.floor(remainingSeconds / 60)} minutes remaining this week.`);
+    const error = new Error(`Transcription limit exceeded. You have ${Math.floor(remainingSeconds / 60)} minutes remaining this week.`) as TranscriptionError;
     error.upgradeRequired = tier === 'free';
     error.usage = {
       current: usedSeconds,

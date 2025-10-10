@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import { z } from 'zod';
 import { zValidator } from '@hono/zod-validator';
 import type { Env } from '../env';
+import { PRESIGNED_URL_EXPIRATION } from '../constants';
 
 const app = new Hono<{ Bindings: Env; Variables: { auth: { userId: string } } }>();
 
@@ -14,7 +15,7 @@ app.post('/uploads', zValidator('json', z.object({ filename: z.string() })), asy
     const signedUrl = await c.env.PHOTOS_BUCKET.createPresignedUrl({
         key,
         action: 'put',
-        expiration: 3600, // Expires in 1 hour
+        expiration: PRESIGNED_URL_EXPIRATION,
     });
 
     return c.json({ uploadUrl: signedUrl, key });

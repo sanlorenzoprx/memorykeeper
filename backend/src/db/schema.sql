@@ -114,6 +114,26 @@ CREATE TABLE jobs (
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE user_plans (
+  user_id TEXT PRIMARY KEY,
+  plan_tier TEXT NOT NULL DEFAULT 'free', -- 'free', 'pro'
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE transcription_usage (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL,
+  photo_id TEXT NOT NULL,
+  audio_duration_seconds INTEGER NOT NULL,
+  transcription_length_chars INTEGER NOT NULL,
+  processing_time_ms INTEGER NOT NULL,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  FOREIGN KEY (photo_id) REFERENCES photos(id) ON DELETE CASCADE
+);
+
 -- Create indexes for performance
 CREATE INDEX IF NOT EXISTS idx_photos_owner_id ON photos(owner_id);
 CREATE INDEX IF NOT EXISTS idx_photos_created_at ON photos(created_at);

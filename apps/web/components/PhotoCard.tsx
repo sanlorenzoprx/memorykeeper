@@ -6,11 +6,13 @@ import { Button } from './ui/button';
 import { Textarea } from './ui/textarea';
 import { apiPut, apiDelete } from '@/lib/api';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useAuth } from '@clerk/nextjs';
 import TagEditor from './TagEditor';
 import VoiceRecorder from './VoiceRecorder';
 
 export default function PhotoCard({ photo }: { photo: Photo }) {
   const queryClient = useQueryClient();
+  const { getToken } = useAuth();
   const [isEditing, setIsEditing] = useState(false);
   const [caption, setCaption] = useState(photo.transcription_text || '');
 
@@ -18,7 +20,10 @@ export default function PhotoCard({ photo }: { photo: Photo }) {
   const r2Url = photo.r2_key.startsWith('http') ? photo.r2_key : `https://${publicR2Domain}/${photo.r2_key}`;
 
   const updateCaptionMutation = useMutation({
-    mutationFn: (newCaption: string) => apiPut(`/api/photos/${photo.id}/caption`, { caption: newCaption }),
+    mutationFn: async (newCaption: string) => {
+      const token = await getToken();
+      return apiPut(`/api/photos/${photo.id}/caption`, { caption: newCaption }, token || undefined);
+    },
     onSuccess: () => {
       setIsEditing(false);
       queryClient.invalidateQueries({ queryKey: ['photos'] });
@@ -29,7 +34,10 @@ export default function PhotoCard({ photo }: { photo: Photo }) {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: () => apiDelete(`/api/photos/${photo.id}`),
+    mutationFn: async () => {
+      const token = await getToken();
+      return apiDelete(`/api/photos/${photo.id}`, undefined, token || undefined);
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['photos'] });
     },

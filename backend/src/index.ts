@@ -7,6 +7,7 @@ import albums from './routes/albums';
 import share from './routes/share';
 import gamification from './routes/gamification';
 import { performR2Delete } from './utils/jobs';
+import { JOB_BATCH_SIZE } from './constants';
 import type { Env } from './env';
 
 const app = new Hono<{ Bindings: Env }>();
@@ -42,9 +43,9 @@ export default {
   fetch: app.fetch,
 
   async scheduled(controller: ScheduledController, env: Env, ctx: ExecutionContext) {
-    // Process up to 20 pending jobs per cron run
+    // Process pending jobs per cron run
     const { results } = await env.DB.prepare(
-        "SELECT id, kind, payload FROM jobs WHERE status = 'pending' ORDER BY created_at ASC LIMIT 20"
+        `SELECT id, kind, payload FROM jobs WHERE status = 'pending' ORDER BY created_at ASC LIMIT ${JOB_BATCH_SIZE}`
     ).all();
 
     for (const job of results || []) {

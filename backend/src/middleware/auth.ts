@@ -1,5 +1,6 @@
 import { createMiddleware } from 'hono/factory';
 import { jwtVerify, createRemoteJWKSet } from 'jose';
+import { ensureUserExists } from '../utils/user-creation';
 
 type AuthEnv = {
     Variables: {
@@ -50,6 +51,10 @@ export const authMiddleware = createMiddleware<AuthEnv>(async (c, next) => {
         if (!userId) {
             return c.json({ error: 'Unauthorized: Invalid token payload' }, 401);
         }
+
+        // Ensure user exists in database (creates user and default plan if needed)
+        const email = payload.email as string | undefined;
+        await ensureUserExists(c.env, userId, email);
 
         // Set the userId in the context for downstream routes
         c.set('auth', { userId });

@@ -4,13 +4,14 @@ import { zValidator } from '@hono/zod-validator';
 import type { Env } from '../env';
 import { scheduleR2Delete } from '../utils/jobs';
 import { transcribeAudioAndUpdatePhoto } from '../services/ai';
+import { PRESIGNED_URL_EXPIRATION, DEFAULT_PAGE_SIZE } from '../constants';
 
 const app = new Hono<{ Bindings: Env; Variables: { auth: { userId: string } } }>();
 
 // GET /api/photos - List photos for the current user
 app.get('/', async (c) => {
   const { userId } = c.get('auth');
-  const { limit = 30, offset = 0, albumId } = c.req.query();
+  const { limit = DEFAULT_PAGE_SIZE, offset = 0, albumId } = c.req.query();
 
   let query: D1PreparedStatement;
   if (albumId) {
@@ -39,7 +40,34 @@ app.get('/', async (c) => {
   const { results } = await query.all();
   const photos = (results || []).map(p => ({ ...p, tags: p.tags ? (p.tags as string).split(',') : [] }));
 
-  return c.json({ photos });
+  // Get total count for pagination metadata
+  let totalCount = 0;
+  if (albumId) {
+    const countResult = await c.env.DB.prepare(
+      'SELECT COUNT(DISTINCT p.id) as count FROM photos p JOIN album_photos ap ON p.id = ap.photo_id WHERE p.owner_id = ? AND ap.album_id = ?'
+    ).bind(userId, albumId).first<{ count: number }>();
+    totalCount = countResult?.count || 0;
+  } else {
+    const countResult = await c.env.DB.prepare(
+      'SELECT COUNT(*) as count FROM photos WHERE owner_id = ?'
+    ).bind(userId).first<{ count: number }>();
+    totalCount = countResult?.count || 0;
+  }
+
+  const limitNum = Number(limit);
+  const offsetNum = Number(offset);
+  const hasMore = offsetNum + limitNum < totalCount;
+
+  return c.json({ 
+    photos,
+    pagination: {
+      total: totalCount,
+      limit: limitNum,
+      offset: offsetNum,
+      hasMore,
+      nextOffset: hasMore ? offsetNum + limitNum : null
+    }
+  });
 });
 
 // POST /api/photos/uploads/image - Request a presigned URL for image upload
@@ -51,7 +79,7 @@ app.post('/uploads/image', zValidator('json', z.object({ filename: z.string() })
     const signedUrl = await c.env.PHOTOS_BUCKET.createPresignedUrl({
         key,
         action: 'put',
-        expiration: 3600, // Expires in 1 hour
+        expiration: PRESIGNED_URL_EXPIRATION,
     });
 
     return c.json({ uploadUrl: signedUrl, key });
@@ -167,15 +195,16 @@ app.delete('/:photoId/tags', zValidator('json', z.object({ tags: z.array(z.strin
     const photo = await c.env.DB.prepare('SELECT id FROM photos WHERE id = ? AND owner_id = ?').bind(photoId, userId).first();
     if (!photo) return c.json({ error: 'Photo not found' }, 404);
 
-    const placeholders = tags.map(() => '?').join(',');
-    const tagIdsQuery = `SELECT id FROM tags WHERE name IN (${placeholders})`;
-    const tagIdsResult = await c.env.DB.prepare(tagIdsQuery).bind(...tags).all<{ id: number }>();
+    // Get tag IDs for the provided tag names
+    const tagIdsResult = await c.env.DB.prepare(
+        'SELECT id FROM tags WHERE name IN (' + tags.map(() => '?').join(',') + ')'
+    ).bind(...tags).all<{ id: number }>();
     const tagIds = tagIdsResult.results.map(r => r.id);
 
     if (tagIds.length > 0) {
-        const deletePlaceholders = tagIds.map(() => '?').join(',');
+        // Delete photo-tag associations
         await c.env.DB.prepare(
-            `DELETE FROM photo_tags WHERE photo_id = ? AND tag_id IN (${deletePlaceholders})`
+            'DELETE FROM photo_tags WHERE photo_id = ? AND tag_id IN (' + tagIds.map(() => '?').join(',') + ')'
         ).bind(photoId, ...tagIds).run();
     }
 

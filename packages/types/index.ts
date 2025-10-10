@@ -32,3 +32,40 @@ export interface Achievement {
   name: string;
   description?: string;
 }
+
+export interface ApiError {
+  error: string;
+  code?: string;
+  details?: any;
+}
+
+export interface TranscriptionError extends Error {
+  upgradeRequired?: boolean;
+  usage?: {
+    current: number;
+    limit: number;
+    remaining: number;
+    resetDate: string;
+  };
+}
+
+export interface TranscriptionLimitCheck {
+  canTranscribe: boolean;
+  usedSeconds: number;
+  remainingSeconds: number;
+  totalLimit: number;
+  resetDate: string;
+}
+
+export interface PaginationMetadata {
+  total: number;
+  limit: number;
+  offset: number;
+  hasMore: boolean;
+  nextOffset: number | null;
+}
+
+export interface PhotosResponse {
+  photos: Photo[];
+  pagination: PaginationMetadata;
+}

@@ -1,5 +1,7 @@
 import type { Env } from '../env';
 import { checkTranscriptionLimit, updateTranscriptionUsage } from '../utils/user-plans';
+import type { TranscriptionError, TranscriptionLimitCheck } from '@memorykeeper/types';
+import { DEFAULT_AUDIO_DURATION } from '../constants';
 
 /**
  * Transcribes an audio file stored in R2 and updates the corresponding photo record.
@@ -19,13 +21,13 @@ export async function transcribeAudioAndUpdatePhoto(env: Env, r2Key: string, pho
 
   // For demo purposes, we'll estimate duration (in real app, you'd parse the audio file)
   // For now, assume all audio files are under 30 seconds for free users
-  const estimatedDuration = 25; // seconds - this should be calculated from actual audio
+  const estimatedDuration = DEFAULT_AUDIO_DURATION;
 
   // Check user's transcription limits
   const limitCheck = await checkTranscriptionLimit(env, userId, estimatedDuration);
 
   if (!limitCheck.canTranscribe) {
-    const error = new Error(`Transcription limit exceeded. You have ${Math.floor(limitCheck.remainingSeconds / 60)} minutes remaining this week.`) as any;
+    const error = new Error(`Transcription limit exceeded. You have ${Math.floor(limitCheck.remainingSeconds / 60)} minutes remaining this week.`) as TranscriptionError;
     error.upgradeRequired = true;
     error.usage = {
       current: limitCheck.usedSeconds,
@@ -46,53 +48,53 @@ export async function transcribeAudioAndUpdatePhoto(env: Env, r2Key: string, pho
   });
   const processingTime = performance.now() - startTime;
 
-    const transcription = response?.text?.trim();
-    console.log(`Transcription result for photo ${photoId}: "${transcription}"`);
+  const transcription = response?.text?.trim();
+  console.log(`Transcription result for photo ${photoId}: "${transcription}"`);
 
-    if (!transcription || transcription.length === 0) {
-      console.warn(`No transcription produced for ${r2Key}`);
-      // Update DB to record attempted transcription but empty result
-      await env.DB.transaction(async (tx) => {
-        await tx.prepare(
-          'UPDATE photos SET transcription_text = ?, updated_at = ? WHERE id = ?'
-        ).bind('', new Date().toISOString(), photoId).run();
-      });
-      return '';
-    }
-
-    // Update database with transcription in a transaction
+  if (!transcription || transcription.length === 0) {
+    console.warn(`No transcription produced for ${r2Key}`);
+    // Update DB to record attempted transcription but empty result
     await env.DB.transaction(async (tx) => {
       await tx.prepare(
         'UPDATE photos SET transcription_text = ?, updated_at = ? WHERE id = ?'
-      ).bind(transcription, new Date().toISOString(), photoId).run();
-
-      await tx.prepare(
-        'INSERT INTO audio_files (id, photo_id, r2_key, transcription_text, duration_seconds) VALUES (?, ?, ?, ?, ?)'
-      ).bind(crypto.randomUUID(), photoId, r2Key, transcription, 25).run();
+      ).bind('', new Date().toISOString(), photoId).run();
     });
-
-    // Update usage tracking
-    await updateTranscriptionUsage(env, userId, photoId, estimatedDuration, transcription.length, processingTime);
-
-    console.log(`Successfully updated photo ${photoId} with transcription (${transcription.length} chars, ${estimatedDuration}s audio)`);
-    return transcription;
-
-  } catch (error) {
-    console.error(`Transcription failed for photo ${photoId}, audio ${r2Key}:`, error);
-
-    // Update DB to record failure
-    try {
-      await env.DB.transaction(async (tx) => {
-        await tx.prepare(
-          'UPDATE photos SET transcription_text = ?, updated_at = ? WHERE id = ?'
-        ).bind('', new Date().toISOString(), photoId).run();
-      });
-    } catch (dbError) {
-      console.error('Failed to update photo with transcription failure status:', dbError);
-    }
-
-    throw error;
+    return '';
   }
+
+  // Update database with transcription in a transaction
+  await env.DB.transaction(async (tx) => {
+    await tx.prepare(
+      'UPDATE photos SET transcription_text = ?, updated_at = ? WHERE id = ?'
+    ).bind(transcription, new Date().toISOString(), photoId).run();
+
+    await tx.prepare(
+      'INSERT INTO audio_files (id, photo_id, r2_key, transcription_text, duration_seconds) VALUES (?, ?, ?, ?, ?)'
+    ).bind(crypto.randomUUID(), photoId, r2Key, transcription, estimatedDuration).run();
+  });
+
+  // Update usage tracking
+  await updateTranscriptionUsage(env, userId, photoId, estimatedDuration, transcription.length, processingTime);
+
+  console.log(`Successfully updated photo ${photoId} with transcription (${transcription.length} chars, ${estimatedDuration}s audio)`);
+  return transcription;
+
+} catch (error) {
+  console.error(`Transcription failed for photo ${photoId}, audio ${r2Key}:`, error);
+
+  // Update DB to record failure
+  try {
+    await env.DB.transaction(async (tx) => {
+      await tx.prepare(
+        'UPDATE photos SET transcription_text = ?, updated_at = ? WHERE id = ?'
+      ).bind('', new Date().toISOString(), photoId).run();
+    });
+  } catch (dbError) {
+    console.error('Failed to update photo with transcription failure status:', dbError);
+  }
+
+  throw error;
+}
 }
 
 /**
