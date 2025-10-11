@@ -3,15 +3,19 @@
   "private": true,
   "version": "1.0.0",
   "scripts": {
-    "dev:all": "concurrently \"pnpm --filter backend dev\" \"pnpm --filter memorykeeper-web dev\"",
+    "dev:all": "concurrently \"pnpm --filter memorykeeper-backend dev\" \"pnpm --filter memorykeeper-web dev\"",
     "install:all": "pnpm -w install",
     "build": "pnpm -w -r build",
     "test": "pnpm -w -r test"
   },
   "devDependencies": {
-    "concurrently": "^8.2.2",
-    "pnpm": "^8.6.0",
-    "typescript": "^5.4.5",
-    "wrangler": "^4.40.2"
+    "concurrently": "^9.2.1",
+    "pnpm": "^10.18.2",
+    "typescript": "^5.9.3",
+    "wrangler": "^4.42.2"
+  },
+  "dependencies": {
+    "eslint-config-next": "^15.5.4",
+    "next": "^15.5.4"
   }
 }

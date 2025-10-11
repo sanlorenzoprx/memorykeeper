@@ -7,7 +7,11 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@clerk/nextjs';
 import { Camera, Upload, X } from 'lucide-react';
 
-export default function PhotoUploader() {
+interface PhotoUploaderProps {
+  onFileSelect?: (file: File) => void;
+}
+
+export default function PhotoUploader({ onFileSelect }: PhotoUploaderProps = {}) {
   const queryClient = useQueryClient();
   const { getToken } = useAuth();
   const [file, setFile] = useState<File | null>(null);
@@ -20,8 +24,10 @@ export default function PhotoUploader() {
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files?.[0]) {
-      setFile(e.target.files[0]);
+      const selectedFile = e.target.files[0];
+      setFile(selectedFile);
       setCapturedImage(null); // Clear captured image if file is selected
+      onFileSelect?.(selectedFile);
     }
   };
 
@@ -67,6 +73,7 @@ export default function PhotoUploader() {
             const file = new File([blob], `camera-capture-${Date.now()}.jpg`, { type: 'image/jpeg' });
             setFile(file);
             setCapturedImage(canvas.toDataURL('image/jpeg'));
+            onFileSelect?.(file);
             stopCamera();
           }
         }, 'image/jpeg', 0.8);

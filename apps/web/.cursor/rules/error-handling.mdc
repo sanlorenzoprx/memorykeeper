@@ -1,0 +1,55 @@
+---
+alwaysApply: true
+---
+
+description: Consistent error handling in API calls, mutations, and UI feedback.type: Agent Requestedglobs:  - "apps/web//.ts"  - "backend/src//*.ts"alwaysApply: false
+Error Handling Guidelines
+Handle errors consistently across frontend and backend to ensure a robust user experience:
+
+Frontend: Use TanStack Query’s error state to display user-friendly messages (e.g., via toasts or error boundaries). Log errors for debugging but don’t expose sensitive details.
+Backend: Catch errors in Hono routes/services, return JSON responses like { error: 'Message', details?: any } with appropriate HTTP status codes (400, 401, 403, 500).
+Handle specific cases: auth failures (invalid Clerk JWT), rate limits (e.g., transcription limits in ai.ts), and missing resources (e.g., R2 file not found).
+Use Zod for input validation in backend routes to catch bad requests early.
+
+✅ Frontend Example: Error Handling with TanStack Query
+import { useQuery } from '@tanstack/react-query';
+import { apiGet } from '@/lib/api';
+import { Photo } from '@memorykeeper/types';
+
+function MemoriesPage() {
+  const { data, error, isLoading } = useQuery<{ photos: Photo[] }>({
+    queryKey: ['photos'],
+    queryFn: () => apiGet('/api/photos'),
+  });
+
+  if (isLoading) return <div>Loading memories...</div>;
+  if (error) return <div role="alert">Error loading photos: {error.message}. Please try again.</div>;
+
+  return <div>{/* Render photos */}</div>;
+}
+
+✅ Backend Example: Error Handling in Hono Route
+import { Hono } from 'hono';
+import { zValidator } from '@hono/zod-validator';
+import { z } from 'zod';
+
+const app = new Hono();
+
+app.post(
+  '/photos',
+  zValidator('json', z.object({ r2_key: z.string() })),
+  async (c) => {
+    try {
+      const body = c.req.valid('json');
+      // Business logic
+      return c.json({ success: true, photo: { id: '123', r2_key: body.r2_key } });
+    } catch (e) {
+      return c.json({ error: 'Failed to create photo', details: e.message }, 500);
+    }
+  }
+);
+
+❌ Anti-pattern: Swallowing Errors
+// Avoid: No error feedback to user
+const { data } = useQuery({ queryKey: ['photos'], queryFn: () => apiGet('/api/photos') });
+if (!data) return null; // Silent failure

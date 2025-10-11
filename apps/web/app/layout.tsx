@@ -14,7 +14,7 @@ export const metadata: Metadata = {
   description: 'Your voice-enabled photo memory vault.',
 };
 
-export default async function RootLayout({
+export default function RootLayout({
   children,
 }: {
   children: React.ReactNode;

@@ -1,4 +1,15 @@
 {
+  "rules": [
+    ".cursor/rules/shared-types.mdc",
+    "apps/web/.cursor/rules/data-fetching-pattern.mdc",
+    "apps/web/.cursor/rules/ui-consistency.mdc",
+    "apps/web/.cursor/rules/api-client-consistency.mdc",
+    "backend/.cursor/rules/hono-service-pattern.mdc",
+    "backend/.cursor/rules/ai-gamification-pattern.mdc",
+    "apps/web/.cursor/rules/accessibility-best-practices.mdc",
+    "apps/web/.cursor/rules/error-handling.mdc",
+    "apps/web/.cursor/rules/performance-optimizations.mdc"
+  ],
   "mcpServers": {
     "shadcn": {
       "command": "npx",

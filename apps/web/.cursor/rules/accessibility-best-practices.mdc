@@ -1,0 +1,51 @@
+---
+alwaysApply: true
+---
+
+description: Ensure all UI elements are accessible with ARIA, keyboard navigation, and alt text.type: Manualglobs:  - "apps/web/components//.ts"  - "apps/web/app//.ts"alwaysApply: true
+Accessibility Rules
+Ensure all UI components in MemoryKeeper are accessible to comply with WCAG and improve user experience:
+
+All images (<Image> in Next.js) must have meaningful alt text, using photo.alt_text if available, or a descriptive fallback.
+Buttons, dialogs, and interactive elements must include ARIA attributes (aria-label, aria-describedby, etc.).
+Use semantic HTML (e.g., <button> instead of <div onClick>).
+Ensure keyboard navigation works for galleries, forms, and modals (e.g., InfiniteGallery.tsx, AlbumForm.tsx).
+Maintain sufficient contrast ratios using Tailwind’s color palette and provide visible focus states.
+
+✅ Example: Accessible Image and Button
+import Image from 'next/image';
+import { Button } from '@/components/ui/button';
+import { Photo } from '@memorykeeper/types';
+
+export default function PhotoCard({ photo }: { photo: Photo }) {
+  return (
+    <div>
+      <Image
+        src={`https://${process.env.NEXT_PUBLIC_R2_PUBLIC_DOMAIN}/${photo.r2_key}`}
+        alt={photo.alt_text || 'User-uploaded memory photo'}
+        aria-label="Memory photo"
+        className="rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+        width={200}
+        height={200}
+      />
+      <Button
+        aria-label="Remove photo from album"
+        onClick={() => removePhoto(photo.id)}
+      >
+        Remove
+      </Button>
+    </div>
+  );
+}
+
+❌ Anti-pattern: Inaccessible Component
+// Avoid: Missing alt text and ARIA, non-semantic element
+<div onClick={() => removePhoto(photo.id)} className="bg-red-500 p-2">
+  <img src={photo.r2_key} />
+</div>
+
+Testing Accessibility
+
+Use axe-core with @testing-library/react in tests (e.g., memorykeeper-journey.test.tsx).
+Verify keyboard navigation in InfiniteGallery.tsx and Dialog.tsx.
+Check screen reader compatibility for PhotoUploader.tsx camera interface.

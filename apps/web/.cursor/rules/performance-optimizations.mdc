@@ -1,0 +1,65 @@
+---
+alwaysApply: true
+---
+
+description: Rules for optimizing performance in data-heavy components and API calls.type: Auto Attachedglobs:  - "apps/web/app//.ts"  - "apps/web/components//.ts"alwaysApply: true
+Performance Optimizations
+Optimize performance for MemoryKeeper’s data-heavy components (e.g., InfiniteGallery.tsx) and API calls:
+
+Use TanStack Query’s staleTime and cacheTime to reduce unnecessary API calls (e.g., for /api/photos).
+Lazy-load images with Next.js <Image> using loading="lazy".
+Virtualize large lists in InfiniteGallery.tsx with react-window or IntersectionObserver.
+Avoid unnecessary re-renders with React.memo, useMemo, or useCallback.
+Backend: Batch D1 database queries and use indexes in schema.sql for fast lookups.
+
+✅ Example: Optimized Gallery with TanStack Query and Lazy Loading
+import { useQuery } from '@tanstack/react-query';
+import { apiGet } from '@/lib/api';
+import Image from 'next/image';
+import { Photo } from '@memorykeeper/types';
+import { memo } from 'react';
+
+const PhotoCard = memo(({ photo }: { photo: Photo }) => (
+  <div>
+    <Image
+      src={`https://${process.env.NEXT_PUBLIC_R2_PUBLIC_DOMAIN}/${photo.r2_key}`}
+      alt={photo.alt_text || 'Memory photo'}
+      width={200}
+      height={200}
+      loading="lazy"
+      className="rounded-md"
+    />
+  </div>
+));
+
+function InfiniteGallery() {
+  const { data } = useQuery<{ photos: Photo[] }>({
+    queryKey: ['photos'],
+    queryFn: () => apiGet('/api/photos'),
+    staleTime: 5 * 60 * 1000, // Cache for 5 minutes
+  });
+
+  return (
+    <div className="grid grid-cols-4 gap-4">
+      {data?.photos.map((photo) => (
+        <PhotoCard key={photo.id} photo={photo} />
+      ))}
+    </div>
+  );
+}
+
+✅ Backend Example: Batched DB Query
+import { Env } from '../env';
+
+async function getPhotosByAlbum(env: Env, albumId: string) {
+  const query = env.DB.prepare('SELECT * FROM photos WHERE album_id = ?').bind(albumId);
+  const results = await query.all();
+  return results.results;
+}
+
+❌ Anti-pattern: Unoptimized Fetching
+// Avoid: No caching, blocking renders
+const { data } = useQuery({
+  queryKey: ['photos'],
+  queryFn: () => fetch('/api/photos').then(res => res.json()),
+});
